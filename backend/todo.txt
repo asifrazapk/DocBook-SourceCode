@@ -1,0 +1,10 @@
+after the appoint done/ sucessfully -> send email to specifcally doctor -> whatsup to patients after confirmation booking
+
+concurrency task
+
+admin lock by credentials
+
+look at multi lingual - admin panel
+
+voice input
+

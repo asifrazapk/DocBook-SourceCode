@@ -1,0 +1,30 @@
+{
+  "appName": "I-DocAssistance",
+  "tagline": "Online — AI Clinic Assistant",
+  "emergencyBanner": "In an emergency, call 1122 immediately",
+  "placeholder": "Type your message here...",
+  "send": "Send",
+  "selectClinic": "Select clinic",
+  "loadingClinics": "Loading clinics...",
+  "typing": "I-DocAssistance is typing...",
+  "bookAppointment": "Book appointment",
+  "viewDoctors": "View doctors",
+  "clinicInfo": "Clinic info",
+  "openingHours": "Opening hours",
+  "admin": {
+    "login": "Admin Login",
+    "clinicSlug": "Clinic slug",
+    "password": "Password",
+    "signIn": "Sign In",
+    "appointments": "Appointments",
+    "doctors": "Doctors",
+    "faqs": "FAQs",
+    "settings": "Settings",
+    "logout": "Logout",
+    "status": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "cancelled": "Cancelled"
+    }
+  }
+}
