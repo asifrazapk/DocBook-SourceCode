@@ -1,8 +1,8 @@
 -- ============================================================
--- MediBot Dummy/Seed Data
+-- DocBook Dummy/Seed Data
 -- Run AFTER db/schema.sql has been applied.
 --
---   psql -U medibot -d medibot -f db/seed_data.sql
+--   psql -U DocBook -d DocBook -f db/seed_data.sql
 --
 -- FK / insert order:
 -- clinics -> doctors -> doctor_availability -> doctor_leaves
@@ -22,16 +22,16 @@ BEGIN;
 -- clinics (12)
 -- ------------------------------------------------------------
 INSERT INTO clinics (name, slug, address, phone, email, opening_hours, timezone, logo_url) VALUES
-('Al-Shifa General Clinic',     'al-shifa-general',     '12-B Gulberg III, Lahore',            '+92-42-35761234', 'info@alshifa.pk',      '{"mon_fri": "9:00-21:00", "sat": "10:00-18:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/al-shifa.png'),
-('City Care Hospital',          'city-care-hospital',   '45 Shahrah-e-Faisal, Karachi',        '+92-21-34567890', 'contact@citycare.pk',  '{"mon_fri": "8:00-22:00", "sat": "9:00-20:00", "sun": "10:00-14:00"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/citycare.png'),
+('Al-Shifa General Clinic',     'al-shifa-general',     '12-B Gulberg III, Lahore',            '+92-42-35761234', 'info@alshifa.pk',      '{"mon_fri": "9:00-21:00", "sat": "10:00-18:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/al-shifa.png'),
+('City Care Hospital',          'city-care-hospital',   '45 Shahrah-e-Faisal, Karachi',        '+92-21-34567890', 'contact@citycare.pk',  '{"mon_fri": "8:00-22:00", "sat": "9:00-20:00", "sun": "10:00-14:00"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/citycare.png'),
 ('Blue Cross Clinic',           'blue-cross-clinic',    '78 F-10 Markaz, Islamabad',           '+92-51-2345678',  'hello@bluecross.pk',   '{"mon_fri": "9:00-20:00", "sat": "9:00-17:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Family Health Center',        'family-health-center', '23 Model Town, Lahore',               '+92-42-35123456', 'care@familyhealth.pk', '{"mon_sat": "8:30-21:30", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/fhc.png'),
+('Family Health Center',        'family-health-center', '23 Model Town, Lahore',               '+92-42-35123456', 'care@familyhealth.pk', '{"mon_sat": "8:30-21:30", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/fhc.png'),
 ('Marina Medical Complex',      'marina-medical',       '5 Clifton Block 4, Karachi',          '+92-21-35897456', 'info@marinamed.pk',    '{"mon_fri": "9:00-22:00", "sat": "9:00-18:00", "sun": "closed"}', 'Asia/Karachi', NULL),
 ('Green Valley Clinic',         'green-valley-clinic',  '9 Bahria Town Phase 4, Rawalpindi',   '+92-51-5123456',  'support@greenvalley.pk','{"mon_fri": "10:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Al-Noor Diagnostic & Clinic', 'al-noor-diagnostic',   '34 Satellite Town, Rawalpindi',       '+92-51-4567890',  'info@alnoor.pk',       '{"mon_sat": "8:00-20:00", "sun": "9:00-13:00"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/alnoor.png'),
+('Al-Noor Diagnostic & Clinic', 'al-noor-diagnostic',   '34 Satellite Town, Rawalpindi',       '+92-51-4567890',  'info@alnoor.pk',       '{"mon_sat": "8:00-20:00", "sun": "9:00-13:00"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/alnoor.png'),
 ('Riverside Medical Center',    'riverside-medical',    '61 DHA Phase 6, Lahore',              '+92-42-37123456', 'contact@riverside.pk', '{"mon_fri": "9:00-21:00", "sat": "9:00-15:00", "sun": "closed"}', 'Asia/Karachi', NULL),
 ('Sunrise Family Clinic',       'sunrise-family',       '17 North Nazimabad, Karachi',         '+92-21-36123456', 'hello@sunrisefc.pk',   '{"mon_sat": "9:00-21:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Horizon Health Clinic',       'horizon-health',       '88 G-9 Markaz, Islamabad',            '+92-51-2876543',  'care@horizonhealth.pk','{"mon_fri": "8:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/horizon.png'),
+('Horizon Health Clinic',       'horizon-health',       '88 G-9 Markaz, Islamabad',            '+92-51-2876543',  'care@horizonhealth.pk','{"mon_fri": "8:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/horizon.png'),
 ('Crescent Clinic & Maternity', 'crescent-clinic',      '3 Johar Town, Lahore',                '+92-42-35991234', 'info@crescentclinic.pk','{"mon_sun": "24/7"}', 'Asia/Karachi', NULL),
 ('Al-Falah Multan Clinic',      'al-falah-multan',      '22 Cantt Bazaar, Multan',             '+92-61-4567321',  'support@alfalah.pk',   '{"mon_fri": "9:00-21:00", "sat": "9:00-17:00", "sun": "closed"}', 'Asia/Karachi', NULL)
 ON CONFLICT (slug) DO NOTHING;

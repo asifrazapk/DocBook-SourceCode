@@ -18,6 +18,8 @@ def _slim(d: dict) -> dict:
         "name": d.get("name"),
         "specialty": d.get("specialty"),
         "bio": d.get("bio"),
+        "years_of_experience": d.get("years_of_experience"),
+        "education": d.get("education"),
     }
 
 
@@ -47,7 +49,12 @@ async def doctor_info_node(state: ChatState) -> dict:
     payload = {
         "intent": "doctor_info",
         "matched_doctor": matched_payload,
-        "doctors": [_slim(d) for d in doctors],
+        # Only attach the roster when we're actually presenting a *list* to
+        # choose from -- once a single doctor is matched, the roster isn't
+        # relevant anymore and including it here was making the quick-reply
+        # chips repeat doctor names instead of offering "view slots" / "book"
+        # next steps.
+        "doctors": [] if matched else [_slim(d) for d in doctors],
         "count": len(doctors),
     }
     return {"response_payload": payload}

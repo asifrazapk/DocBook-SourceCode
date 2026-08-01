@@ -3,8 +3,9 @@
 Flow (see router.py for the conditional edges):
 
     preprocess
-      └─(route_after_preprocess)─▶ intent ─▶ entity_extractor ─▶ merge_state
+      └─(route_after_preprocess)─▶ intent ─▶ merge_state
                                  └─(invalid)──────────────────────────▶ response
+    (intent now classifies AND extracts entities in one call -- see nlu_prompt.py)
     merge_state ─(route_by_intent)─▶ faq | clinic_lookup | doctor_lookup
                                      | validator | cancel | reschedule
                                      | save_memory  (greeting/emergency/other)
@@ -29,7 +30,6 @@ from app.graph.nodes import (
     confirmation_node,
     doctor_info_node,
     doctor_lookup_node,
-    entity_extractor_node,
     faq_node,
     intent_node,
     merge_state_node,
@@ -56,7 +56,6 @@ def build_chat_graph():
     # -- register nodes ----------------------------------------------------
     graph.add_node("preprocess", preprocess_node)
     graph.add_node("intent", intent_node)
-    graph.add_node("entity_extractor", entity_extractor_node)
     graph.add_node("merge_state", merge_state_node)
     graph.add_node("validator", validator_node)
     graph.add_node("ask_missing", ask_missing_node)
@@ -80,8 +79,7 @@ def build_chat_graph():
         route_after_preprocess,
         {"intent": "intent", "response": "response"},
     )
-    graph.add_edge("intent", "entity_extractor")
-    graph.add_edge("entity_extractor", "merge_state")
+    graph.add_edge("intent", "merge_state")
 
     # -- fan out by intent -------------------------------------------------
     graph.add_conditional_edges(

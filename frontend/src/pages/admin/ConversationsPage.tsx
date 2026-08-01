@@ -63,7 +63,7 @@ export default function ConversationsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Patient message', 'Bot response', 'Feedback', 'Eval score', 'When', ''].map((h) => (
+                  {['Conversation ID', 'Patient message', 'Bot response', 'Feedback', 'Eval score', 'When', ''].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500">{h}</th>
                   ))}
                 </tr>
@@ -77,6 +77,7 @@ export default function ConversationsPage() {
                         onClick={() => setExpanded(isOpen ? null : m.message_id)}
                         className="hover:bg-slate-50/70 cursor-pointer"
                       >
+                        <td className="px-5 py-3 text-slate-400 text-xs font-mono">#{m.conversation_id}</td>
                         <td className="px-5 py-3 max-w-[240px] truncate text-slate-700">{m.message_text ?? '—'}</td>
                         <td className="px-5 py-3 max-w-[280px] truncate text-slate-500">{m.llm_response ?? '—'}</td>
                         <td className="px-5 py-3">
@@ -104,7 +105,7 @@ export default function ConversationsPage() {
                       </tr>
                       {isOpen && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={6} className="px-5 py-4">
+                          <td colSpan={7} className="px-5 py-4">
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Patient message</p>

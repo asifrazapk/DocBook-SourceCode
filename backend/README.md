@@ -1,6 +1,6 @@
-# MediBot backend
+# DocBook backend
 
-FastAPI + SQLModel backend for the MediBot clinic assistant, backed by PostgreSQL and Azure OpenAI.
+FastAPI + SQLModel backend for the DocBook clinic assistant, backed by PostgreSQL and Azure OpenAI.
 
 ## What changed in this update
 
@@ -15,14 +15,14 @@ FastAPI + SQLModel backend for the MediBot clinic assistant, backed by PostgreSQ
 ## 1. Set up PostgreSQL with pgAdmin
 
 1. Install PostgreSQL locally (or use a hosted instance) and open **pgAdmin**.
-2. In pgAdmin, right-click **Databases → Create → Database**, name it `medibot`, owner `medibot` (or your preferred role).
+2. In pgAdmin, right-click **Databases → Create → Database**, name it `DocBook`, owner `DocBook` (or your preferred role).
 3. Create the app role if it doesn't exist yet: right-click **Login/Group Roles → Create → Login/Group Role**
-   - General tab: name `medibot`
-   - Definition tab: password `medibot` (change this for anything beyond local dev)
+   - General tab: name `DocBook`
+   - Definition tab: password `DocBook` (change this for anything beyond local dev)
    - Privileges tab: enable "Can login?"
-4. Load the schema: open the `medibot` database in pgAdmin, open the **Query Tool**, paste the contents of `db/schema.sql`, and execute (F5).
+4. Load the schema: open the `DocBook` database in pgAdmin, open the **Query Tool**, paste the contents of `db/schema.sql`, and execute (F5).
    - Alternatively, you don't have to run this manually — the FastAPI app calls `SQLModel.metadata.create_all()` on startup and will create any missing tables automatically. `db/schema.sql` is there so you can inspect/manage the schema directly in pgAdmin, or provision the DB before the app ever runs.
-5. Confirm tables appear under `medibot → Schemas → public → Tables` in the pgAdmin tree: `clinics`, `doctors`, `faqs`, `appointments`, `conversations`, `messages`.
+5. Confirm tables appear under `DocBook → Schemas → public → Tables` in the pgAdmin tree: `clinics`, `doctors`, `faqs`, `appointments`, `conversations`, `messages`.
 
 ## 2. Configure environment variables
 
@@ -33,7 +33,7 @@ cp .env.example .env
 ```
 
 ```env
-DATABASE_URL=postgresql+psycopg2://medibot:medibot@localhost:5432/medibot
+DATABASE_URL=postgresql+psycopg2://DocBook:DocBook@localhost:5432/DocBook
 
 AZURE_OPENAI_ENDPOINT_SM=https://YOUR-RESOURCE-NAME.openai.azure.com/
 AZURE_OPENAI_KEY_SM=your-azure-openai-key

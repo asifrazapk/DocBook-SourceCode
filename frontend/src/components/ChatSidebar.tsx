@@ -1,86 +1,105 @@
-import { useMemo, useState } from 'react'
-import { Search, MessageSquarePlus, MoreHorizontal, Sun, Moon } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Search, MessageSquarePlus, ChevronsLeft, ChevronsRight, LogOut } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-
-export interface RecentChat {
-  sessionId: string
-  title: string
-  timestamp: number
-}
+import { getChatConversations, type ChatConversationSummary } from '../services/api'
+import type { ChatIdentity } from './ChatLogin'
 
 interface Props {
-  chats: RecentChat[]
+  clinicId: number
+  identity: ChatIdentity
   activeSessionId: string
   onSelect: (sessionId: string) => void
   onNewChat: () => void
+  onLogout: () => void
+  refreshKey: number // bump this after sending the first message of a new chat, to refetch page 1
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+const SIDEBAR_COLLAPSED_KEY = 'idoc_chat_sidebar_collapsed'
 
-function groupChats(chats: RecentChat[]) {
-  const now = Date.now()
-  const recent: RecentChat[] = []
-  const lastWeek: RecentChat[] = []
-  const older: RecentChat[] = []
-  for (const c of chats) {
-    const age = now - c.timestamp
-    if (age <= 7 * DAY_MS) recent.push(c)
-    else if (age <= 30 * DAY_MS) lastWeek.push(c)
-    else older.push(c)
-  }
-  return { recent, lastWeek, older }
-}
-
-export default function ChatSidebar({ chats, activeSessionId, onSelect, onNewChat }: Props) {
+export default function ChatSidebar({ clinicId, identity, activeSessionId, onSelect, onNewChat, onLogout, refreshKey }: Props) {
   const { colors } = useTheme()
   const [query, setQuery] = useState('')
-  const [dark, setDark] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
+  const [conversations, setConversations] = useState<ChatConversationSummary[]>([])
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
 
-  const filtered = useMemo(() => {
-    const sorted = [...chats].sort((a, b) => b.timestamp - a.timestamp)
-    if (!query.trim()) return sorted
-    return sorted.filter((c) => c.title.toLowerCase().includes(query.toLowerCase()))
-  }, [chats, query])
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0')
+      return next
+    })
+  }
 
-  const { recent, lastWeek, older } = groupChats(filtered)
+  // Reset and load page 1 whenever the identity changes or a new chat starts.
+  useEffect(() => {
+    setConversations([])
+    setPage(1)
+    setTotalPages(1)
+    loadPage(1, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId, identity.phone, refreshKey])
 
-  const renderGroup = (label: string, items: RecentChat[]) =>
-    items.length > 0 && (
-      <div className="mb-4">
-        <div className="flex items-center justify-between px-3 mb-1">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-          <MoreHorizontal size={13} className="text-slate-300" />
+  const loadPage = (pageToLoad: number, replace: boolean) => {
+    setLoading(true)
+    getChatConversations(clinicId, identity.phone, pageToLoad, 20)
+      .then((r) => {
+        setConversations((prev) => (replace ? r.data.items : [...prev, ...r.data.items]))
+        setTotalPages(r.data.total_pages)
+        setPage(pageToLoad)
+      })
+      .finally(() => setLoading(false))
+  }
+
+  // Infinite scroll: load the next page once the user nears the bottom.
+  const onScroll = () => {
+    const el = listRef.current
+    if (!el || loading || page >= totalPages) return
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60) {
+      loadPage(page + 1, false)
+    }
+  }
+
+  const filtered = query.trim()
+    ? conversations.filter((c) => (c.first_message ?? '').toLowerCase().includes(query.toLowerCase()))
+    : conversations
+
+  if (collapsed) {
+    return (
+      <aside className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 gap-3 flex-shrink-0">
+        <button onClick={toggleCollapsed} className="text-slate-400 hover:text-slate-700" title="Expand">
+          <ChevronsRight size={16} />
+        </button>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: colors.primary }}>
+          {identity.name[0]?.toUpperCase() ?? 'I'}
         </div>
-        <div className="space-y-0.5">
-          {items.map((c) => (
-            <button
-              key={c.sessionId}
-              onClick={() => onSelect(c.sessionId)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-xs truncate transition-colors ${
-                c.sessionId === activeSessionId ? 'text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-              style={c.sessionId === activeSessionId ? { backgroundColor: colors.primary } : undefined}
-              title={c.title}
-            >
-              {c.title}
-            </button>
-          ))}
-        </div>
-      </div>
+        <button onClick={onNewChat} className="text-slate-400 hover:text-slate-700 mt-2" title="New chat">
+          <MessageSquarePlus size={16} />
+        </button>
+      </aside>
     )
+  }
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0">
       <div className="p-4 flex items-center justify-between">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: colors.primary }}>
-          I
+          {identity.name[0]?.toUpperCase() ?? 'I'}
         </div>
-        <button
-          onClick={onNewChat}
-          className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-semibold px-3 py-2 rounded-full hover:bg-slate-800 transition-colors"
-        >
-          <MessageSquarePlus size={13} /> New Chat
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onNewChat}
+            className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-semibold px-3 py-2 rounded-full hover:bg-slate-800 transition-colors"
+          >
+            <MessageSquarePlus size={13} /> New Chat
+          </button>
+          <button onClick={toggleCollapsed} className="text-slate-400 hover:text-slate-700 p-1.5" title="Collapse sidebar">
+            <ChevronsLeft size={15} />
+          </button>
+        </div>
       </div>
 
       <div className="px-4 pb-3">
@@ -95,33 +114,37 @@ export default function ChatSidebar({ chats, activeSessionId, onSelect, onNewCha
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2">
-        {filtered.length === 0 ? (
+      <div ref={listRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-2">
+        {filtered.length === 0 && !loading ? (
           <p className="text-xs text-slate-400 text-center py-8 px-3">No conversations yet. Start chatting below.</p>
         ) : (
-          <>
-            {renderGroup('Recent', recent)}
-            {renderGroup('Last week', lastWeek)}
-            {renderGroup('Older', older)}
-          </>
+          <div className="space-y-0.5 pb-2">
+            {filtered.map((c) => (
+              <button
+                key={c.session_id}
+                onClick={() => onSelect(c.session_id)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs truncate transition-colors ${
+                  c.session_id === activeSessionId ? 'text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                style={c.session_id === activeSessionId ? { backgroundColor: colors.primary } : undefined}
+                title={c.first_message ?? undefined}
+              >
+                {c.first_message?.slice(0, 60) || 'New conversation'}
+              </button>
+            ))}
+          </div>
         )}
+        {loading && <p className="text-[11px] text-slate-300 text-center py-2">Loading…</p>}
       </div>
 
-      <div className="p-3 border-t border-slate-100">
-        <div className="flex items-center bg-slate-100 rounded-full p-0.5 mb-3">
-          <button
-            onClick={() => setDark(false)}
-            className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold py-1.5 rounded-full transition-colors ${!dark ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}
-          >
-            <Sun size={11} /> Light
-          </button>
-          <button
-            onClick={() => setDark(true)}
-            className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold py-1.5 rounded-full transition-colors ${dark ? 'bg-white shadow-sm text-slate-700' : 'text-slate-400'}`}
-          >
-            <Moon size={11} /> Dark
-          </button>
+      <div className="p-3 border-t border-slate-100 flex items-center justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-700 truncate">{identity.name}</p>
+          <p className="text-[11px] text-slate-400 truncate">{identity.phone}</p>
         </div>
+        <button onClick={onLogout} className="text-slate-400 hover:text-rose-500 flex-shrink-0" title="Switch account">
+          <LogOut size={15} />
+        </button>
       </div>
     </aside>
   )

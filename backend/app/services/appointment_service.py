@@ -115,6 +115,12 @@ async def get_appointment(appt_id: int) -> Optional[dict]:
     return enriched[0]
 
 
+async def list_appointments_created_since(clinic_id: int, since: datetime, limit: int = 20) -> List[dict]:
+    """Backs the admin notification bell's polling -- appointments created
+    after `since`, from any source (chat or manual)."""
+    return await AppointmentRepo.list_created_since(clinic_id, since, limit=limit)
+
+
 async def get_doctor_day_schedule(clinic_id: int, doctor_id: int, on_date: date_type) -> Dict[str, Any]:
     """Composes the doctor-wise day view: available time slots (computed on
     the fly -- no pre-generated doctor_slots required), the day's

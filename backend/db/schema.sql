@@ -32,10 +32,36 @@
 BEGIN;
 
 -- ------------------------------------------------------------
+-- users
+-- ------------------------------------------------------------
+-- Minimal placeholder for admin/staff accounts. There is no real admin
+-- login/auth system yet (the admin panel is currently a single shared
+-- experience) -- this table + the DEFAULT_USER_ID seed row exist so every
+-- other table can carry a user_id column now, ready to be populated
+-- properly once real admin authentication is built. Until then, every
+-- write defaults to this one seeded user (see app/repo/base_model_sql.py).
+CREATE TABLE IF NOT EXISTS users (
+    id                  SERIAL PRIMARY KEY,
+    name                VARCHAR NOT NULL,
+    email               VARCHAR UNIQUE,
+    is_active           BOOLEAN NOT NULL DEFAULT true,
+    is_deleted          BOOLEAN NOT NULL DEFAULT false,
+    local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    local_updated_at    TIMESTAMP,
+    server_created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    server_updated_at   TIMESTAMPTZ
+);
+
+INSERT INTO users (id, name, email) VALUES (1, 'System Admin', 'admin@i-docassistance.local')
+ON CONFLICT (id) DO NOTHING;
+SELECT setval(pg_get_serial_sequence('users', 'id'), GREATEST((SELECT MAX(id) FROM users), 1));
+
+-- ------------------------------------------------------------
 -- clinics
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS clinics (
     id                  SERIAL PRIMARY KEY,
+    user_id             INTEGER REFERENCES users (id),
     name                VARCHAR NOT NULL,
     slug                VARCHAR NOT NULL UNIQUE,
     address             VARCHAR NOT NULL,
@@ -61,12 +87,16 @@ CREATE INDEX IF NOT EXISTS ix_clinics_is_active ON clinics (is_active);
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS doctors (
     id                              SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     clinic_id                       INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
     name                            VARCHAR NOT NULL,
     specialty                       VARCHAR NOT NULL,
     bio                             VARCHAR,
     email                           VARCHAR,
     phone                           VARCHAR,
+    years_of_experience             INTEGER,
+    graduation_year                 INTEGER,
+    education                       VARCHAR,  -- e.g. "MBBS, FCPS (Cardiology)"
     default_slot_duration_minutes   INTEGER NOT NULL DEFAULT 30,  -- used when creating weekly availability (Add Doctor step 1)
     is_active                       BOOLEAN NOT NULL DEFAULT true,
     is_deleted          BOOLEAN NOT NULL DEFAULT false,
@@ -91,6 +121,7 @@ CREATE INDEX IF NOT EXISTS ix_doctors_is_active ON doctors (is_active);
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS doctor_availability (
     id                      SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     doctor_id               INTEGER NOT NULL REFERENCES doctors (id) ON DELETE CASCADE,
     day_of_week             SMALLINT NOT NULL,  -- 0 = Sunday ... 6 = Saturday
     start_time              TIME NOT NULL,
@@ -130,6 +161,7 @@ CREATE INDEX IF NOT EXISTS ix_doctor_availability_is_active ON doctor_availabili
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS doctor_leaves (
     id                  SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     doctor_id           INTEGER NOT NULL REFERENCES doctors (id) ON DELETE CASCADE,
     leave_date          DATE NOT NULL,
     start_time          TIME,   -- NULL together with end_time = full day off
@@ -159,6 +191,7 @@ CREATE INDEX IF NOT EXISTS ix_doctor_leaves_doctor_date ON doctor_leaves (doctor
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS doctor_slots (
     id                  SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     doctor_id           INTEGER NOT NULL REFERENCES doctors (id) ON DELETE CASCADE,
     clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
     slot_date           DATE NOT NULL,
@@ -187,6 +220,7 @@ CREATE INDEX IF NOT EXISTS ix_doctor_slots_available ON doctor_slots (doctor_id,
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS patients (
     id                  SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
     name                VARCHAR NOT NULL,
     phone               VARCHAR NOT NULL,
@@ -214,6 +248,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_patients_clinic_email ON patients (clinic_i
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS faqs (
     id                  SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
     question_en         VARCHAR NOT NULL,
     question_ur         VARCHAR,
@@ -252,6 +287,7 @@ CREATE INDEX IF NOT EXISTS ix_faqs_clinic_id ON faqs (clinic_id);
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS appointments (
     id                      SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     clinic_id               INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
     doctor_id               INTEGER REFERENCES doctors (id) ON DELETE SET NULL,
     patient_id              INTEGER NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
@@ -286,8 +322,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_appointments_doctor_slot
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS conversations (
     id                  SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
     session_id          VARCHAR NOT NULL UNIQUE,
+    patient_phone       VARCHAR,  -- set once the patient "logs in" (basic phone-based identity, no password)
+    patient_name        VARCHAR,  -- denormalized for the history sidebar list, avoids a join
+    language            VARCHAR,  -- 'en' or 'ur' -- the language this conversation is being conducted in, kept in sync each turn
     is_deleted          BOOLEAN NOT NULL DEFAULT false,
     local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
     local_updated_at    TIMESTAMP,
@@ -297,6 +337,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 CREATE INDEX IF NOT EXISTS ix_conversations_clinic_id ON conversations (clinic_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_conversations_session_id ON conversations (session_id);
+CREATE INDEX IF NOT EXISTS ix_conversations_patient_phone ON conversations (clinic_id, patient_phone);
 
 -- ------------------------------------------------------------
 -- messages / llm_evaluations
@@ -310,6 +351,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_conversations_session_id ON conversations (
 
 CREATE TABLE IF NOT EXISTS messages (
     message_id          VARCHAR(100) NOT NULL,
+    user_id             INTEGER REFERENCES users (id),
     conversation_id     INTEGER NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
     message_text        TEXT,
     llm_response        TEXT,
@@ -329,6 +371,7 @@ CREATE INDEX IF NOT EXISTS ix_messages_server_created_at ON messages (server_cre
 
 CREATE TABLE IF NOT EXISTS llm_evaluations (
     message_id              VARCHAR(255) NOT NULL,
+    user_id                 INTEGER REFERENCES users (id),
     conversation_id         INTEGER NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
     relevance               DOUBLE PRECISION,
     correctness             DOUBLE PRECISION,
@@ -358,6 +401,7 @@ CREATE INDEX IF NOT EXISTS ix_llm_evaluations_conversation_id ON llm_evaluations
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS app_settings (
     id                  SERIAL PRIMARY KEY,
+    user_id                         INTEGER REFERENCES users (id),
     clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
     key                 VARCHAR NOT NULL,
     value               JSONB NOT NULL,

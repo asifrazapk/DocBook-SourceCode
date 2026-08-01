@@ -1,6 +1,6 @@
 """Prompt builder for the entity-extraction node."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List
 
 
@@ -10,7 +10,9 @@ def build_extraction_messages(
     known_slots: Dict[str, object],
     lang: str,
 ) -> List[Dict[str, str]]:
-    today = date.today().isoformat()
+    today = date.today()
+    tomorrow = today + timedelta(days=1)
+    day_after = today + timedelta(days=2)
 
     recent = history[-6:] if history else []
     history_block = "\n".join(f"{m['role']}: {m['content']}" for m in recent)
@@ -19,8 +21,14 @@ def build_extraction_messages(
     known_block = ", ".join(f"{k}={v}" for k, v in known_slots.items() if v) or "(none)"
 
     system = f"""You extract appointment details from a patient's message for MediBot.
-Today's date is {today} (Asia/Karachi). Resolve relative dates like "tomorrow",
-"next Monday", "kal", "پرسوں" into absolute YYYY-MM-DD.
+Today's date is {today.isoformat()} (Asia/Karachi).
+
+Resolve relative dates to absolute YYYY-MM-DD using these exact mappings --
+do not compute the arithmetic yourself, use the values given:
+- "today", "آج"                          -> {today.isoformat()}
+- "tomorrow", "kal", "کل"                 -> {tomorrow.isoformat()}
+- "day after tomorrow", "پرسوں"           -> {day_after.isoformat()}
+- any other relative phrase ("next Monday", etc.) -> resolve it yourself relative to {today.isoformat()}
 
 Extract ONLY fields the patient actually provides in the latest message. Do not
 invent values. Normalise:

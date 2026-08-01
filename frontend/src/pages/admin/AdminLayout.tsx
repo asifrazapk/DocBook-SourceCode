@@ -22,7 +22,7 @@ import ThemeColorPicker from '../../components/ThemeColorPicker'
 import NotificationBell from '../../components/NotificationBell'
 import { useNotifications } from '../../context/NotificationContext'
 import { useClinic } from '../../context/ClinicContext'
-import { getGeneralSettings } from '../../services/api'
+import { getGeneralSettings, getRecentAppointments } from '../../services/api'
 
 const APP_NAME = 'I-DocAssistance'
 const SIDEBAR_STORAGE_KEY = 'idoc_sidebar_collapsed'
@@ -43,7 +43,7 @@ const NAV_ITEMS = [
 export default function AdminLayout() {
   const { clinic, clinicId, error } = useClinic()
   const { colors } = useTheme()
-  const { setEnabled } = useNotifications()
+  const { setEnabled, add: notify } = useNotifications()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1')
 
@@ -55,6 +55,37 @@ export default function AdminLayout() {
     getGeneralSettings(clinicId)
       .then((r) => setEnabled(r.data.notifications_enabled))
       .catch(() => setEnabled(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId])
+
+  // Poll for newly created appointments -- this is what makes a booking made
+  // via the patient chat (a different browser/session entirely) show up as a
+  // notification here just as reliably as one made in the admin panel.
+  useEffect(() => {
+    if (!clinicId) return
+    let since = new Date().toISOString()
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const res = await getRecentAppointments(clinicId, since)
+        if (cancelled) return
+        for (const appt of res.data) {
+          notify(
+            `New appointment booked for ${appt.patient_name ?? 'a patient'}${appt.doctor_name ? ` with ${appt.doctor_name}` : ''} on ${appt.appointment_date}.`
+          )
+        }
+        if (res.data.length > 0) since = new Date().toISOString()
+      } catch {
+        /* transient network hiccup — try again next tick */
+      }
+    }
+
+    const interval = setInterval(poll, 20000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicId])
 

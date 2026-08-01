@@ -24,6 +24,9 @@ export default function AddDoctorWizard({ clinicId, onClose, onCreated }: Props)
   const [bio, setBio] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [yearsOfExperience, setYearsOfExperience] = useState('')
+  const [graduationYear, setGraduationYear] = useState('')
+  const [education, setEducation] = useState('')
   const [durationMode, setDurationMode] = useState<'options' | 'custom'>('options')
   const [durationOption, setDurationOption] = useState(30)
   const [customDuration, setCustomDuration] = useState(30)
@@ -66,6 +69,9 @@ export default function AddDoctorWizard({ clinicId, onClose, onCreated }: Props)
           bio: bio || null,
           email: email || null,
           phone: phone || null,
+          years_of_experience: yearsOfExperience ? Number(yearsOfExperience) : null,
+          graduation_year: graduationYear ? Number(graduationYear) : null,
+          education: education || null,
           default_slot_duration_minutes: duration,
         },
         entries
@@ -128,6 +134,31 @@ export default function AddDoctorWizard({ clinicId, onClose, onCreated }: Props)
               </div>
               <Field label="Specialty" required>
                 <Input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="General Physician" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Years of experience">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={70}
+                    value={yearsOfExperience}
+                    onChange={(e) => setYearsOfExperience(e.target.value)}
+                    placeholder="12"
+                  />
+                </Field>
+                <Field label="Graduation year">
+                  <Input
+                    type="number"
+                    min={1950}
+                    max={new Date().getFullYear()}
+                    value={graduationYear}
+                    onChange={(e) => setGraduationYear(e.target.value)}
+                    placeholder="2012"
+                  />
+                </Field>
+              </div>
+              <Field label="Education / qualifications">
+                <Input value={education} onChange={(e) => setEducation(e.target.value)} placeholder="MBBS, FCPS (Cardiology)" />
               </Field>
               <Field label="Bio">
                 <Textarea rows={2} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Short professional bio…" />

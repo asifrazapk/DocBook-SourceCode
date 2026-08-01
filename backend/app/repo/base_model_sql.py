@@ -147,10 +147,20 @@ class BasePostgresModel:
     # =========================
     # CREATE
     # =========================
+    # Placeholder until a real admin-authentication system exists: every
+    # table now carries a user_id column, but there's no login session to
+    # pull a real one from yet, so every write attributes to this one
+    # seeded account (see schema.sql's `users` table). Once real admin auth
+    # exists, callers that know the acting user should pass user_id
+    # explicitly in `data` -- this only fills the gap when they don't.
+    DEFAULT_USER_ID = 1
+
     @classmethod
     async def create(cls, data: dict):
         async with get_write_pool().acquire() as conn:
             data = dict(data)  # avoid mutating input
+            if cls.TABLE != "users" and "user_id" not in data:
+                data["user_id"] = cls.DEFAULT_USER_ID
 
             columns = list(data.keys())
             values = list(data.values())

@@ -16,6 +16,9 @@ class DoctorCreate(BaseModel):
     bio: str | None = None
     email: str | None = None
     phone: str | None = None
+    years_of_experience: int | None = None
+    graduation_year: int | None = None
+    education: str | None = None
     default_slot_duration_minutes: int = 30
 
 
@@ -25,6 +28,9 @@ class DoctorUpdate(BaseModel):
     bio: str | None = None
     email: str | None = None
     phone: str | None = None
+    years_of_experience: int | None = None
+    graduation_year: int | None = None
+    education: str | None = None
     default_slot_duration_minutes: int | None = None
     is_active: bool | None = None
 

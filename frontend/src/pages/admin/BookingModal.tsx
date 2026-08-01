@@ -14,7 +14,6 @@ import SearchableSelect, { type SearchableOption } from '../../components/ui/Sea
 import { Field, Input, Textarea } from '../../components/ui/Field'
 import { Spinner } from '../../components/ui/Card'
 import { useToast } from '../../components/ui/Toast'
-import { useNotifications } from '../../context/NotificationContext'
 import { useTheme } from '../../context/ThemeContext'
 
 interface Props {
@@ -34,7 +33,6 @@ interface SlotEntry {
 
 export default function BookingModal({ clinicId, doctorId, date, initialTime, onClose, onBooked }: Props) {
   const toast = useToast()
-  const { add: notify } = useNotifications()
   const { colors } = useTheme()
 
   const [doctors, setDoctors] = useState<Doctor[]>([])
@@ -144,11 +142,6 @@ export default function BookingModal({ clinicId, doctorId, date, initialTime, on
       if (res.data.failed.length > 0) setFailedTimes(res.data.failed)
       if (res.data.booked.length > 0) {
         toast.show(res.data.booked.length === 1 ? 'Appointment booked.' : `${res.data.booked.length} appointments booked.`)
-        const patientLabel = patientMode === 'existing' ? selectedPatient?.name : newName
-        const doctorLabel = doctors.find((d) => d.id === Number(selectedDoctorId))?.name
-        notify(
-          `New appointment booked for ${patientLabel ?? 'a patient'}${doctorLabel ? ` with ${doctorLabel}` : ''} on ${appointmentDate}.`
-        )
         onBooked()
       }
     } catch (err: any) {

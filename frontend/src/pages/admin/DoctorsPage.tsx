@@ -105,7 +105,7 @@ export default function DoctorsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Doctor', 'Specialty', 'Contact', 'Today', 'Status', 'Added', ''].map((h) => (
+                  {['Doctor', 'Specialty', 'Experience', 'Education', 'Contact', 'Today', 'Status', 'Added', ''].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500">{h}</th>
                   ))}
                 </tr>
@@ -125,6 +125,8 @@ export default function DoctorsPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-slate-600">{d.specialty}</td>
+                    <td className="px-5 py-3 text-slate-500 text-xs">{d.years_of_experience != null ? `${d.years_of_experience} yrs` : '—'}</td>
+                    <td className="px-5 py-3 text-slate-500 text-xs max-w-[180px] truncate" title={d.education ?? undefined}>{d.education ?? '—'}</td>
                     <td className="px-5 py-3 text-slate-500 text-xs">
                       <p>{d.phone ?? '—'}</p>
                       <p className="text-slate-400">{d.email ?? '—'}</p>
@@ -219,6 +221,9 @@ function DoctorEditModal({
   const [bio, setBio] = useState(doctor.bio ?? '')
   const [email, setEmail] = useState(doctor.email ?? '')
   const [phone, setPhone] = useState(doctor.phone ?? '')
+  const [yearsOfExperience, setYearsOfExperience] = useState(doctor.years_of_experience?.toString() ?? '')
+  const [graduationYear, setGraduationYear] = useState(doctor.graduation_year?.toString() ?? '')
+  const [education, setEducation] = useState(doctor.education ?? '')
   const [duration, setDuration] = useState(doctor.default_slot_duration_minutes)
   const [isActive, setIsActive] = useState(doctor.is_active)
   const [submitting, setSubmitting] = useState(false)
@@ -238,6 +243,9 @@ function DoctorEditModal({
         bio: bio || null,
         email: email || null,
         phone: phone || null,
+        years_of_experience: yearsOfExperience ? Number(yearsOfExperience) : null,
+        graduation_year: graduationYear ? Number(graduationYear) : null,
+        education: education || null,
         default_slot_duration_minutes: duration,
         is_active: isActive,
       })
@@ -277,6 +285,23 @@ function DoctorEditModal({
         </div>
         <Field label="Specialty" required>
           <Input value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Years of experience">
+            <Input type="number" min={0} max={70} value={yearsOfExperience} onChange={(e) => setYearsOfExperience(e.target.value)} />
+          </Field>
+          <Field label="Graduation year">
+            <Input
+              type="number"
+              min={1950}
+              max={new Date().getFullYear()}
+              value={graduationYear}
+              onChange={(e) => setGraduationYear(e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="Education / qualifications">
+          <Input value={education} onChange={(e) => setEducation(e.target.value)} placeholder="MBBS, FCPS (Cardiology)" />
         </Field>
         <Field label="Bio">
           <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} />

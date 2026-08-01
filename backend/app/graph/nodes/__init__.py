@@ -6,7 +6,6 @@ updates. They are wired together in app/graph/graph.py.
 
 from app.graph.nodes.preprocess import preprocess_node
 from app.graph.nodes.intent import intent_node
-from app.graph.nodes.entity_extractor import entity_extractor_node
 from app.graph.nodes.merge_state import merge_state_node
 from app.graph.nodes.validator import validator_node
 from app.graph.nodes.ask_missing import ask_missing_node
@@ -26,7 +25,6 @@ from app.graph.nodes.response import response_node
 __all__ = [
     "preprocess_node",
     "intent_node",
-    "entity_extractor_node",
     "merge_state_node",
     "validator_node",
     "ask_missing_node",

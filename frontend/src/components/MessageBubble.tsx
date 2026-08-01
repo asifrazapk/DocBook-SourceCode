@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Copy, Share2, ThumbsUp, ThumbsDown, Check } from 'lucide-react'
+import { Copy, ThumbsUp, ThumbsDown, Check, Send, Volume2, VolumeX } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
+import { useToast } from './ui/Toast'
 import { submitChatFeedback } from '../services/api'
 
 interface Props {
@@ -10,11 +11,38 @@ interface Props {
   messageId?: string
 }
 
+const speechSupported = typeof window !== 'undefined' && !!window.speechSynthesis
+
+// Voices load asynchronously in most browsers (empty on the very first call),
+// so cache them via the voiceschanged event rather than re-querying blind.
+let cachedVoices: SpeechSynthesisVoice[] = []
+if (speechSupported) {
+  cachedVoices = window.speechSynthesis.getVoices()
+  window.speechSynthesis.onvoiceschanged = () => {
+    cachedVoices = window.speechSynthesis.getVoices()
+  }
+}
+
+function findVoice(langPrefix: string): SpeechSynthesisVoice | undefined {
+  return cachedVoices.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
+}
+
 export default function MessageBubble({ role, content, messageId }: Props) {
   const { colors } = useTheme()
+  const toast = useToast()
   const isUser = role === 'user'
   const [copied, setCopied] = useState(false)
   const [feedback, setFeedback] = useState<0 | 1 | null>(null)
+  const [askingComment, setAskingComment] = useState(false)
+  const [comment, setComment] = useState('')
+  const [speaking, setSpeaking] = useState(false)
+
+  useEffect(() => {
+    return () => {
+      if (speaking) window.speechSynthesis.cancel()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const copy = async () => {
     try {
@@ -26,26 +54,71 @@ export default function MessageBubble({ role, content, messageId }: Props) {
     }
   }
 
-  const share = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ text: content })
-      } catch {
-        /* user cancelled the share sheet */
+  const toggleSpeak = () => {
+    if (!speechSupported) return
+    if (speaking) {
+      window.speechSynthesis.cancel()
+      setSpeaking(false)
+      return
+    }
+    const isUrdu = /[\u0600-\u06FF]/.test(content)
+    // Strip markdown bullets/asterisks so it doesn't read punctuation aloud.
+    const plain = content.replace(/[*_#`]/g, '').replace(/^-\s+/gm, '')
+    const utterance = new SpeechSynthesisUtterance(plain)
+
+    if (isUrdu) {
+      const urduVoice = findVoice('ur')
+      if (urduVoice) {
+        utterance.voice = urduVoice
+        utterance.lang = urduVoice.lang
+      } else {
+        // Being honest here: most browsers/OSes simply don't ship an Urdu
+        // voice, and setting .lang alone without a matching voice usually
+        // produces silence rather than a real (if imperfect) readout.
+        toast.show("This device doesn't have an Urdu voice installed — can't read this aloud.", 'info')
+        return
       }
     } else {
-      copy()
+      utterance.lang = 'en-US'
+      const enVoice = findVoice('en')
+      if (enVoice) utterance.voice = enVoice
     }
+
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    window.speechSynthesis.cancel() // don't stack multiple readouts
+    window.speechSynthesis.speak(utterance)
+    setSpeaking(true)
   }
 
-  const react = async (type: 0 | 1) => {
+  const sendFeedback = async (type: 0 | 1, value = '') => {
     if (!messageId) return
     setFeedback(type)
     try {
-      await submitChatFeedback(messageId, type)
+      await submitChatFeedback(messageId, type, value)
     } catch {
       /* best-effort — feedback is a nice-to-have, not critical path */
     }
+  }
+
+  const clickThumbUp = () => {
+    setAskingComment(false)
+    sendFeedback(1)
+  }
+
+  const clickThumbDown = () => {
+    // Ask for a quick comment on what went wrong before submitting.
+    setAskingComment(true)
+  }
+
+  const submitComment = () => {
+    sendFeedback(0, comment.trim())
+    setAskingComment(false)
+  }
+
+  const skipComment = () => {
+    sendFeedback(0)
+    setAskingComment(false)
   }
 
   if (isUser) {
@@ -81,12 +154,20 @@ export default function MessageBubble({ role, content, messageId }: Props) {
           {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
           {copied ? 'Copied' : 'Copy'}
         </button>
-        <button onClick={share} className="flex items-center gap-1 text-xs hover:text-slate-600 transition-colors" title="Share">
-          <Share2 size={13} /> Share
-        </button>
+        {speechSupported && (
+          <button
+            onClick={toggleSpeak}
+            className="flex items-center gap-1 text-xs hover:text-slate-600 transition-colors"
+            title={speaking ? 'Stop reading' : 'Read aloud'}
+            style={speaking ? { color: colors.primary } : undefined}
+          >
+            {speaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+            {speaking ? 'Stop' : 'Listen'}
+          </button>
+        )}
         <span className="flex-1" />
         <button
-          onClick={() => react(1)}
+          onClick={clickThumbUp}
           className="hover:text-emerald-600 transition-colors"
           title="Helpful"
           style={feedback === 1 ? { color: '#059669' } : undefined}
@@ -94,7 +175,7 @@ export default function MessageBubble({ role, content, messageId }: Props) {
           <ThumbsUp size={14} />
         </button>
         <button
-          onClick={() => react(0)}
+          onClick={clickThumbDown}
           className="hover:text-rose-500 transition-colors"
           title="Not helpful"
           style={feedback === 0 ? { color: '#E11D48' } : undefined}
@@ -102,6 +183,25 @@ export default function MessageBubble({ role, content, messageId }: Props) {
           <ThumbsDown size={14} />
         </button>
       </div>
+
+      {askingComment && (
+        <div className="mt-2 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
+          <input
+            autoFocus
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submitComment()}
+            placeholder="What went wrong? (optional)"
+            className="flex-1 bg-transparent text-xs focus:outline-none"
+          />
+          <button onClick={submitComment} className="text-xs font-semibold" style={{ color: colors.primary }} title="Send">
+            <Send size={13} />
+          </button>
+          <button onClick={skipComment} className="text-xs text-slate-400 hover:text-slate-600">
+            Skip
+          </button>
+        </div>
+      )}
     </div>
   )
 }

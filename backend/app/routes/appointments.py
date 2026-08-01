@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, datetime, time
 
 from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel
@@ -74,6 +74,14 @@ async def doctor_day_schedule(clinic_id: int, doctor_id: int, on_date: date):
     """Backs the doctor-wise day view: stat cards, available slots (computed
     on the fly), and the day's appointments."""
     return await appointment_service.get_doctor_day_schedule(clinic_id, doctor_id, on_date)
+
+
+@router.get("/recent")
+async def recent_appointments(clinic_id: int, since: datetime, limit: int = 20):
+    """Appointments created after `since` -- polled by the admin
+    notification bell so a booking made via chat shows up as a notification
+    just as reliably as one made in the admin panel."""
+    return await appointment_service.list_appointments_created_since(clinic_id, since, limit=limit)
 
 
 @router.get("/{appt_id}")

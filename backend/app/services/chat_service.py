@@ -53,31 +53,73 @@ async def get_chat_history(clinic_id: int, session_id: str) -> List[Dict[str, st
     return _expand_history(turn_rows)
 
 
+async def list_conversations_for_patient(
+    clinic_id: int, phone: str, page: int = 1, page_size: int = 20
+) -> Dict[str, Any]:
+    """Paginated conversation history for a logged-in patient -- the chat
+    sidebar loads this a page at a time (infinite scroll) rather than
+    fetching everything up front."""
+    return await ConversationRepo.list_by_phone_paginated(clinic_id, phone, page=page, page_size=page_size)
+
+
 async def get_chat_response(
     clinic_id: int,
     session_id: str,
     user_message: str,
-) -> Tuple[str, List[str], str]:
+    patient_phone: str | None = None,
+    patient_name: str | None = None,
+    language: str | None = None,
+) -> Tuple[str, List[str], str, str]:
     try:
         clinic = await ClinicRepo.get_by_id(clinic_id)
     except ValueError:
-        return "Clinic not found.", [], ""
+        return "Clinic not found.", [], "", language or "en"
 
-    # Lightweight language hint; nodes refine detection per message. Falls
-    # back to the clinic's configured default (Settings > General) rather
-    # than always assuming English when the script itself is ambiguous.
+    # Priority order matters here, and got this backwards before:
+    #   1. Actual Urdu script in THIS message is the strongest signal --
+    #      someone typing Urdu should just work even if they never touched
+    #      the language toggle (which defaults to 'en' until clicked).
+    #   2. Otherwise, the frontend's explicit selection is sticky -- this is
+    #      what stops a Latin-script quick-reply tap (a doctor's name, "9:00
+    #      AM") from silently flipping an Urdu conversation back to English,
+    #      since that one message's script alone says nothing about which
+    #      language the conversation is actually in.
+    #   3. Only fall back to the clinic's configured default when the
+    #      caller gives us neither (e.g. an older client).
     if any(ord(c) > 1536 for c in user_message):
         lang = "ur"
+    elif language in ("en", "ur"):
+        lang = language
     else:
         general = await get_general_settings(clinic_id)
         lang = general.get("default_language", "en")
 
-    # Get or create the conversation for this session.
+    # Get or create the conversation for this session. If the patient is
+    # "logged in" (basic phone-based identity, no password), attach that
+    # identity now -- this is what lets the chat sidebar list their past
+    # conversations across sessions. `language` is kept in sync every turn
+    # too, so the conversation record always reflects what it's actually
+    # being conducted in (not just whatever the first message happened to be).
     conv = await ConversationRepo.get_by_session_id(session_id)
     if not conv:
         conv = await ConversationRepo.create(
-            {"clinic_id": clinic_id, "session_id": session_id}
+            {
+                "clinic_id": clinic_id,
+                "session_id": session_id,
+                "patient_phone": patient_phone,
+                "patient_name": patient_name,
+                "language": lang,
+            }
         )
+    else:
+        updates: Dict[str, Any] = {}
+        if patient_phone and conv.get("patient_phone") != patient_phone:
+            updates["patient_phone"] = patient_phone
+            updates["patient_name"] = patient_name
+        if conv.get("language") != lang:
+            updates["language"] = lang
+        if updates:
+            conv = await ConversationRepo.update(conv["id"], updates)
 
     # Prior turns (oldest -> newest), unpacked into role/content pairs for
     # node context (see _expand_history docstring above).
@@ -115,7 +157,7 @@ async def get_chat_response(
         server_created_at=server_created_at,
     )
 
-    return final_reply, quick_replies, turn["message_id"]
+    return final_reply, quick_replies, turn["message_id"], lang
 
 
 def _clinic_local_and_server_now(clinic_timezone: str | None) -> Tuple[datetime, datetime]:

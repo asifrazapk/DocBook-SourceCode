@@ -121,6 +121,13 @@ async def _booked_times(doctor_id: int, on_date: date_type) -> set:
     return booked
 
 
+def _format_ampm(t) -> str:
+    """12-hour display format for the chat-facing slot list (e.g. '9:00 AM').
+    Only used here -- the admin API's get_available_slots() stays in 24-hour
+    HH:MM since the admin UI relies on that for sorting/matching."""
+    return t.strftime("%I:%M %p").lstrip("0")
+
+
 async def check_availability(
     doctor_id: int,
     doctor_name: Optional[str],
@@ -158,7 +165,7 @@ async def check_availability(
             "reason": "ok" if open_slots else "fully_booked",
             "date": str(on_date),
             "doctor_name": doctor_name,
-            "open_slots": [s["start_time"].strftime("%H:%M") for s in open_slots[:10]],
+            "open_slots": [_format_ampm(s["start_time"]) for s in open_slots[:10]],
         }
 
     try:
@@ -173,5 +180,5 @@ async def check_availability(
         "date": str(on_date),
         "time": on_time,
         "doctor_name": doctor_name,
-        "open_slots": [s["start_time"].strftime("%H:%M") for s in open_slots[:10]],
+        "open_slots": [_format_ampm(s["start_time"]) for s in open_slots[:10]],
     }

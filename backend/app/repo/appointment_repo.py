@@ -1,4 +1,4 @@
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 from typing import Any, Dict, Optional
 
 from app.repo.base_model_sql import BasePostgresModel
@@ -89,6 +89,30 @@ class AppointmentRepo(BasePostgresModel):
             order_by="appointment_date",
             descending=True,
         )
+
+    @classmethod
+    async def list_created_since(cls, clinic_id: int, since: datetime, limit: int = 20) -> list:
+        """Appointments created after `since`, oldest first -- lets the admin
+        notification bell poll for genuinely new bookings regardless of
+        source (chat or manual), rather than each booking flow having to
+        push its own client-side notification."""
+        async with get_read_pool().acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT a.*, p.name AS patient_name, p.phone AS patient_phone, d.name AS doctor_name
+                FROM appointments a
+                JOIN patients p ON p.id = a.patient_id
+                LEFT JOIN doctors d ON d.id = a.doctor_id
+                WHERE a.clinic_id = $1 AND a.server_created_at > $2
+                  AND (a.is_deleted = false OR a.is_deleted IS NULL)
+                ORDER BY a.server_created_at ASC
+                LIMIT $3
+                """,
+                clinic_id,
+                since,
+                limit,
+            )
+            return [dict(r) for r in rows]
 
     @classmethod
     async def list_for_doctor_on_date(cls, doctor_id: int, on_date: date_type):

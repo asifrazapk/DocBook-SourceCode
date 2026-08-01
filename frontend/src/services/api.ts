@@ -53,6 +53,7 @@ export interface ChatResponse {
   session_id: string
   quick_replies: string[]
   message_id: string
+  language: string
 }
 
 export interface ChatHistoryMessage {
@@ -68,6 +69,9 @@ export interface Doctor {
   bio: string | null
   email: string | null
   phone: string | null
+  years_of_experience: number | null
+  graduation_year: number | null
+  education: string | null
   default_slot_duration_minutes: number
   is_active: boolean
   appointments_today?: number
@@ -247,14 +251,45 @@ export const updateClinic = (id: number, data: Partial<Omit<Clinic, 'id'>>) =>
 // ---------------------------------------------------------------------------
 // Chat
 // ---------------------------------------------------------------------------
-export const sendMessage = (clinicId: number, sessionId: string, message: string) =>
-  api.post<ChatResponse>('/chat', { clinic_id: clinicId, session_id: sessionId, message })
+export const sendMessage = (
+  clinicId: number,
+  sessionId: string,
+  message: string,
+  patientPhone?: string,
+  patientName?: string,
+  language?: string
+) =>
+  api.post<ChatResponse>('/chat', {
+    clinic_id: clinicId,
+    session_id: sessionId,
+    message,
+    patient_phone: patientPhone,
+    patient_name: patientName,
+    language,
+  })
 
 export const getChatHistory = (clinicId: number, sessionId: string) =>
   api.get<ChatHistoryMessage[]>('/chat/history', { params: { clinic_id: clinicId, session_id: sessionId } })
 
+export interface ChatConversationSummary {
+  id: number
+  session_id: string
+  local_created_at: string
+  language: string | null
+  first_message: string | null
+  last_activity: string | null
+}
+
+export const getChatConversations = (clinicId: number, phone: string, page = 1, pageSize = 20) =>
+  api.get<Paginated<ChatConversationSummary>>('/chat/conversations', {
+    params: { clinic_id: clinicId, phone, page, page_size: pageSize },
+  })
+
 export const submitChatFeedback = (messageId: string, feedbackType: 0 | 1, feedbackValue = '') =>
   api.post('/chat/feedback', { message_id: messageId, feedback_type: feedbackType, feedback_value: feedbackValue })
+
+export const getRecentAppointments = (clinicId: number, since: string, limit = 20) =>
+  api.get<Appointment[]>('/appointments/recent', { params: { clinic_id: clinicId, since, limit } })
 
 // ---------------------------------------------------------------------------
 // Doctors
@@ -286,6 +321,9 @@ export const createDoctorWithAvailability = (
     bio?: string | null
     email?: string | null
     phone?: string | null
+    years_of_experience?: number | null
+    graduation_year?: number | null
+    education?: string | null
     default_slot_duration_minutes: number
   },
   weeklyAvailability: WeeklyAvailabilityEntry[]

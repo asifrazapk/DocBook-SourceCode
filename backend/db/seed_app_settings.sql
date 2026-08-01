@@ -1,9 +1,9 @@
 -- ============================================================
--- MediBot app_settings Seed Data
+-- DocBook app_settings Seed Data
 -- Run AFTER db/schema.sql and db/seed_data.sql have been applied
 -- (this depends on the clinics seeded there).
 --
---   psql -U medibot -d medibot -f db/seed_app_settings.sql
+--   psql -U DocBook -d DocBook -f db/seed_app_settings.sql
 --
 -- Seeds one 'email' settings row per clinic (SMTP config used when
 -- sending appointment confirmation emails). Only 8 of the 12 clinics
