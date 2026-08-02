@@ -13,6 +13,7 @@ import AnalyticsPage from './pages/admin/AnalyticsPage'
 import ConversationsPage from './pages/admin/ConversationsPage'
 import SettingsPage from './pages/admin/SettingsPage'
 import BillingPage from './pages/admin/BillingPage'
+import ReportsPage from './pages/admin/ReportsPage'
 import { ClinicProvider } from './context/ClinicContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { NotificationProvider } from './context/NotificationContext'
@@ -39,6 +40,7 @@ export default function App() {
                   <Route path="clinics" element={<ClinicsPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
                   <Route path="conversations" element={<ConversationsPage />} />
+                  <Route path="reports" element={<ReportsPage />} />
                   <Route path="billing" element={<BillingPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>

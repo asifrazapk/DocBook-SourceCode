@@ -14,12 +14,15 @@ Two paths for the REPLY text:
    already needs a call regardless.
 """
 
+import logging
 from typing import List
 
 from app.graph.constants import EMERGENCY_NUMBERS, QUICK_REPLIES, Intent
 from app.graph.llm import complete_json
 from app.graph.prompts import build_response_messages
 from app.graph.state import ChatState
+
+logger = logging.getLogger(__name__)
 
 
 async def response_node(state: ChatState) -> dict:
@@ -49,6 +52,7 @@ async def response_node(state: ChatState) -> dict:
     try:
         result = await complete_json(messages, temperature=0.4)
     except Exception:
+        logger.exception(f"Response composition LLM call failed for intent={intent}")
         result = {}
 
     reply = (result.get("reply") or "").strip()
@@ -70,6 +74,7 @@ async def response_node(state: ChatState) -> dict:
                 temperature=0.2,
             )
         except Exception:
+            logger.exception("Urdu-compliance retry LLM call failed")
             retry_result = {}
         retry_reply = (retry_result.get("reply") or "").strip()
         if retry_reply and _looks_like_urdu(retry_reply):

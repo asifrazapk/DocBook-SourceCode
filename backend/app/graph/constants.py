@@ -20,6 +20,7 @@ class Intent:
     DOCTOR_INFO = "doctor_info"
     CLINIC_INFO = "clinic_info"
     FAQ = "faq"
+    MEDICAL_RECORD = "view_prescription"  # patient asking to see their prescription/report
     GREETING = "greeting"
     EMERGENCY = "emergency"
     OTHER = "other"
@@ -35,6 +36,7 @@ INTENT_LABELS = [
     Intent.DOCTOR_INFO,
     Intent.CLINIC_INFO,
     Intent.FAQ,
+    Intent.MEDICAL_RECORD,
     Intent.GREETING,
     Intent.EMERGENCY,
     Intent.OTHER,

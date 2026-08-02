@@ -1,8 +1,8 @@
 -- ============================================================
--- DocBook Dummy/Seed Data
+-- MediBot Dummy/Seed Data
 -- Run AFTER db/schema.sql has been applied.
 --
---   psql -U DocBook -d DocBook -f db/seed_data.sql
+--   psql -U medibot -d medibot -f db/seed_data.sql
 --
 -- FK / insert order:
 -- clinics -> doctors -> doctor_availability -> doctor_leaves
@@ -22,16 +22,16 @@ BEGIN;
 -- clinics (12)
 -- ------------------------------------------------------------
 INSERT INTO clinics (name, slug, address, phone, email, opening_hours, timezone, logo_url) VALUES
-('Al-Shifa General Clinic',     'al-shifa-general',     '12-B Gulberg III, Lahore',            '+92-42-35761234', 'info@alshifa.pk',      '{"mon_fri": "9:00-21:00", "sat": "10:00-18:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/al-shifa.png'),
-('City Care Hospital',          'city-care-hospital',   '45 Shahrah-e-Faisal, Karachi',        '+92-21-34567890', 'contact@citycare.pk',  '{"mon_fri": "8:00-22:00", "sat": "9:00-20:00", "sun": "10:00-14:00"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/citycare.png'),
+('Al-Shifa General Clinic',     'al-shifa-general',     '12-B Gulberg III, Lahore',            '+92-42-35761234', 'info@alshifa.pk',      '{"mon_fri": "9:00-21:00", "sat": "10:00-18:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/al-shifa.png'),
+('City Care Hospital',          'city-care-hospital',   '45 Shahrah-e-Faisal, Karachi',        '+92-21-34567890', 'contact@citycare.pk',  '{"mon_fri": "8:00-22:00", "sat": "9:00-20:00", "sun": "10:00-14:00"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/citycare.png'),
 ('Blue Cross Clinic',           'blue-cross-clinic',    '78 F-10 Markaz, Islamabad',           '+92-51-2345678',  'hello@bluecross.pk',   '{"mon_fri": "9:00-20:00", "sat": "9:00-17:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Family Health Center',        'family-health-center', '23 Model Town, Lahore',               '+92-42-35123456', 'care@familyhealth.pk', '{"mon_sat": "8:30-21:30", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/fhc.png'),
+('Family Health Center',        'family-health-center', '23 Model Town, Lahore',               '+92-42-35123456', 'care@familyhealth.pk', '{"mon_sat": "8:30-21:30", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/fhc.png'),
 ('Marina Medical Complex',      'marina-medical',       '5 Clifton Block 4, Karachi',          '+92-21-35897456', 'info@marinamed.pk',    '{"mon_fri": "9:00-22:00", "sat": "9:00-18:00", "sun": "closed"}', 'Asia/Karachi', NULL),
 ('Green Valley Clinic',         'green-valley-clinic',  '9 Bahria Town Phase 4, Rawalpindi',   '+92-51-5123456',  'support@greenvalley.pk','{"mon_fri": "10:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Al-Noor Diagnostic & Clinic', 'al-noor-diagnostic',   '34 Satellite Town, Rawalpindi',       '+92-51-4567890',  'info@alnoor.pk',       '{"mon_sat": "8:00-20:00", "sun": "9:00-13:00"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/alnoor.png'),
+('Al-Noor Diagnostic & Clinic', 'al-noor-diagnostic',   '34 Satellite Town, Rawalpindi',       '+92-51-4567890',  'info@alnoor.pk',       '{"mon_sat": "8:00-20:00", "sun": "9:00-13:00"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/alnoor.png'),
 ('Riverside Medical Center',    'riverside-medical',    '61 DHA Phase 6, Lahore',              '+92-42-37123456', 'contact@riverside.pk', '{"mon_fri": "9:00-21:00", "sat": "9:00-15:00", "sun": "closed"}', 'Asia/Karachi', NULL),
 ('Sunrise Family Clinic',       'sunrise-family',       '17 North Nazimabad, Karachi',         '+92-21-36123456', 'hello@sunrisefc.pk',   '{"mon_sat": "9:00-21:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Horizon Health Clinic',       'horizon-health',       '88 G-9 Markaz, Islamabad',            '+92-51-2876543',  'care@horizonhealth.pk','{"mon_fri": "8:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.DocBook.pk/logos/horizon.png'),
+('Horizon Health Clinic',       'horizon-health',       '88 G-9 Markaz, Islamabad',            '+92-51-2876543',  'care@horizonhealth.pk','{"mon_fri": "8:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/horizon.png'),
 ('Crescent Clinic & Maternity', 'crescent-clinic',      '3 Johar Town, Lahore',                '+92-42-35991234', 'info@crescentclinic.pk','{"mon_sun": "24/7"}', 'Asia/Karachi', NULL),
 ('Al-Falah Multan Clinic',      'al-falah-multan',      '22 Cantt Bazaar, Multan',             '+92-61-4567321',  'support@alfalah.pk',   '{"mon_fri": "9:00-21:00", "sat": "9:00-17:00", "sun": "closed"}', 'Asia/Karachi', NULL)
 ON CONFLICT (slug) DO NOTHING;
@@ -40,27 +40,27 @@ ON CONFLICT (slug) DO NOTHING;
 -- doctors (20) — available_days is gone; schedules now live in
 -- doctor_availability below.
 -- ------------------------------------------------------------
-INSERT INTO doctors (clinic_id, name, specialty, bio, email, phone, default_slot_duration_minutes) VALUES
-((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Dr. Ayesha Khan',      'General Physician',   'Over 12 years of experience in family medicine and preventive care.', 'ayesha.khan@alshifa.pk',      '+92-300-1000001', 30),
-((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Dr. Bilal Ahmed',      'Cardiologist',        'Specialist in interventional cardiology and heart health screening.', 'bilal.ahmed@alshifa.pk',      '+92-300-1000002', 30),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Dr. Sana Malik',       'Pediatrician',        'Dedicated to child healthcare from infancy through adolescence.', 'sana.malik@citycare.pk',      '+92-300-1000003', 20),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Dr. Usman Tariq',      'Orthopedic Surgeon',  'Focused on sports injuries and joint replacement surgery.', 'usman.tariq@citycare.pk',     '+92-300-1000004', 45),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Dr. Hina Farooq',      'Dermatologist',       'Expert in skin conditions, acne treatment, and cosmetic dermatology.', 'hina.farooq@citycare.pk',     '+92-300-1000005', 30),
-((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Dr. Kamran Sheikh',    'ENT Specialist',      'Treats ear, nose, and throat conditions for all age groups.', 'kamran.sheikh@bluecross.pk',  '+92-300-1000006', 20),
-((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Dr. Mahnoor Iqbal',    'Gynecologist',        'Provides comprehensive women''s health and prenatal care.', 'mahnoor.iqbal@bluecross.pk',  '+92-300-1000007', 30),
-((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Dr. Farhan Qureshi',   'General Physician',   'Family medicine practitioner focused on chronic disease management.', 'farhan.qureshi@familyhealth.pk', '+92-300-1000008', 20),
-((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Dr. Zara Abbasi',      'Nutritionist',        'Helps patients build sustainable, healthy eating habits.', 'zara.abbasi@familyhealth.pk', '+92-300-1000009', 45),
-((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Dr. Imran Hashmi',     'Neurologist',         'Specializes in migraine management and neurological disorders.', 'imran.hashmi@marinamed.pk',   '+92-300-1000010', 30),
-((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Dr. Rabia Siddiqui',   'Psychiatrist',        'Focused on anxiety, depression, and stress-related conditions.', 'rabia.siddiqui@marinamed.pk', '+92-300-1000011', 45),
-((SELECT id FROM clinics WHERE slug = 'green-valley-clinic'),  'Dr. Nadeem Chaudhry',  'General Physician',   'Over 8 years treating common illnesses and minor emergencies.', 'nadeem.chaudhry@greenvalley.pk', '+92-300-1000012', 30),
-((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Dr. Sara Yousaf',      'Radiologist',         'Reads and interprets X-rays, ultrasounds, and CT scans.', 'sara.yousaf@alnoor.pk',       '+92-300-1000013', 20),
-((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Dr. Ali Raza',         'Pathologist',         'Runs the diagnostic lab and reviews all lab test results.', 'ali.raza@alnoor.pk',          '+92-300-1000014', 30),
-((SELECT id FROM clinics WHERE slug = 'riverside-medical'),    'Dr. Mehwish Aslam',    'Pediatrician',        'Passionate about vaccination programs and newborn care.', 'mehwish.aslam@riverside.pk',  '+92-300-1000015', 30),
-((SELECT id FROM clinics WHERE slug = 'sunrise-family'),       'Dr. Waqas Hussain',    'Dentist',             'Provides general and cosmetic dentistry services.', 'waqas.hussain@sunrisefc.pk',  '+92-300-1000016', 30),
-((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Dr. Amna Riaz',        'Endocrinologist',     'Manages diabetes, thyroid, and hormonal disorders.', 'amna.riaz@horizonhealth.pk',  '+92-300-1000017', 30),
-((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Dr. Tariq Javed',      'Urologist',           'Specializes in kidney and urinary tract conditions.', 'tariq.javed@horizonhealth.pk','+92-300-1000018', 30),
-((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'Dr. Fatima Zaidi',     'Obstetrician',        'Maternity care specialist with 15 years of delivery experience.', 'fatima.zaidi@crescentclinic.pk', '+92-300-1000019', 30),
-((SELECT id FROM clinics WHERE slug = 'al-falah-multan'),      'Dr. Omar Farooqi',     'General Physician',   'Provides walk-in consultations and minor procedures.', 'omar.farooqi@alfalah.pk',     '+92-300-1000020', 30);
+INSERT INTO doctors (clinic_id, name, specialty, bio, email, phone, years_of_experience, graduation_year, education, default_slot_duration_minutes) VALUES
+((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Dr. Ayesha Khan',      'General Physician',   'Over 12 years of experience in family medicine and preventive care.', 'ayesha.khan@alshifa.pk',      '+92-300-1000001', 12, 2012, 'MBBS, FCPS (Family Medicine)', 30),
+((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Dr. Bilal Ahmed',      'Cardiologist',        'Specialist in interventional cardiology and heart health screening.', 'bilal.ahmed@alshifa.pk',      '+92-300-1000002', 15, 2009, 'MBBS, FCPS (Cardiology)', 30),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Dr. Sana Malik',       'Pediatrician',        'Dedicated to child healthcare from infancy through adolescence.', 'sana.malik@citycare.pk',      '+92-300-1000003', 9,  2015, 'MBBS, FCPS (Pediatrics)', 20),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Dr. Usman Tariq',      'Orthopedic Surgeon',  'Focused on sports injuries and joint replacement surgery.', 'usman.tariq@citycare.pk',     '+92-300-1000004', 11, 2013, 'MBBS, FCPS (Orthopedic Surgery)', 45),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Dr. Hina Farooq',      'Dermatologist',       'Expert in skin conditions, acne treatment, and cosmetic dermatology.', 'hina.farooq@citycare.pk',     '+92-300-1000005', 7,  2017, 'MBBS, FCPS (Dermatology)', 30),
+((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Dr. Kamran Sheikh',    'ENT Specialist',      'Treats ear, nose, and throat conditions for all age groups.', 'kamran.sheikh@bluecross.pk',  '+92-300-1000006', 10, 2014, 'MBBS, FCPS (ENT)', 20),
+((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Dr. Mahnoor Iqbal',    'Gynecologist',        'Provides comprehensive women''s health and prenatal care.', 'mahnoor.iqbal@bluecross.pk',  '+92-300-1000007', 13, 2011, 'MBBS, FCPS (Gynecology & Obstetrics)', 30),
+((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Dr. Farhan Qureshi',   'General Physician',   'Family medicine practitioner focused on chronic disease management.', 'farhan.qureshi@familyhealth.pk', '+92-300-1000008', 6,  2018, 'MBBS', 20),
+((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Dr. Zara Abbasi',      'Nutritionist',        'Helps patients build sustainable, healthy eating habits.', 'zara.abbasi@familyhealth.pk', '+92-300-1000009', 5,  2019, 'BS Nutrition & Dietetics, RD', 45),
+((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Dr. Imran Hashmi',     'Neurologist',         'Specializes in migraine management and neurological disorders.', 'imran.hashmi@marinamed.pk',   '+92-300-1000010', 14, 2010, 'MBBS, FCPS (Neurology)', 30),
+((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Dr. Rabia Siddiqui',   'Psychiatrist',        'Focused on anxiety, depression, and stress-related conditions.', 'rabia.siddiqui@marinamed.pk', '+92-300-1000011', 8,  2016, 'MBBS, FCPS (Psychiatry)', 45),
+((SELECT id FROM clinics WHERE slug = 'green-valley-clinic'),  'Dr. Nadeem Chaudhry',  'General Physician',   'Over 8 years treating common illnesses and minor emergencies.', 'nadeem.chaudhry@greenvalley.pk', '+92-300-1000012', 8, 2016, 'MBBS', 30),
+((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Dr. Sara Yousaf',      'Radiologist',         'Reads and interprets X-rays, ultrasounds, and CT scans.', 'sara.yousaf@alnoor.pk',       '+92-300-1000013', 10, 2014, 'MBBS, FCPS (Radiology)', 20),
+((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Dr. Ali Raza',         'Pathologist',         'Runs the diagnostic lab and reviews all lab test results.', 'ali.raza@alnoor.pk',          '+92-300-1000014', 12, 2012, 'MBBS, FCPS (Pathology)', 30),
+((SELECT id FROM clinics WHERE slug = 'riverside-medical'),    'Dr. Mehwish Aslam',    'Pediatrician',        'Passionate about vaccination programs and newborn care.', 'mehwish.aslam@riverside.pk',  '+92-300-1000015', 7,  2017, 'MBBS, FCPS (Pediatrics)', 30),
+((SELECT id FROM clinics WHERE slug = 'sunrise-family'),       'Dr. Waqas Hussain',    'Dentist',             'Provides general and cosmetic dentistry services.', 'waqas.hussain@sunrisefc.pk',  '+92-300-1000016', 9,  2015, 'BDS', 30),
+((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Dr. Amna Riaz',        'Endocrinologist',     'Manages diabetes, thyroid, and hormonal disorders.', 'amna.riaz@horizonhealth.pk',  '+92-300-1000017', 11, 2013, 'MBBS, FCPS (Endocrinology)', 30),
+((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Dr. Tariq Javed',      'Urologist',           'Specializes in kidney and urinary tract conditions.', 'tariq.javed@horizonhealth.pk','+92-300-1000018', 16, 2008, 'MBBS, FCPS (Urology)', 30),
+((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'Dr. Fatima Zaidi',     'Obstetrician',        'Maternity care specialist with 15 years of delivery experience.', 'fatima.zaidi@crescentclinic.pk', '+92-300-1000019', 15, 2009, 'MBBS, FCPS (Gynecology & Obstetrics)', 30),
+((SELECT id FROM clinics WHERE slug = 'al-falah-multan'),      'Dr. Omar Farooqi',     'General Physician',   'Provides walk-in consultations and minor procedures.', 'omar.farooqi@alfalah.pk',     '+92-300-1000020', 4, 2020, 'MBBS', 30);
 
 -- ------------------------------------------------------------
 -- doctor_availability (70) — recurring weekly rule per doctor.
@@ -187,25 +187,25 @@ ON CONFLICT (doctor_id, leave_date, start_time) DO NOTHING;
 -- Repeat customers (see Ahmed Raza below) reuse this same row across
 -- multiple appointments instead of creating a duplicate.
 -- ------------------------------------------------------------
-INSERT INTO patients (clinic_id, name, phone, email, source) VALUES
-((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Ahmed Raza',      '+92-300-1234567', 'ahmed.raza@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Sana Iqbal',      '+92-301-2345678', 'sana.iqbal@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Bilal Hussain',   '+92-302-3456789', NULL, 'manual'),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Fatima Sheikh',   '+92-303-4567890', 'fatima.sheikh@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Zainab Ali',      '+92-304-5678901', NULL, 'manual'),
-((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Hassan Javed',    '+92-305-6789012', 'hassan.javed@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Ayesha Noor',     '+92-306-7890123', 'ayesha.noor@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Omar Siddiqui',   '+92-307-8901234', NULL, 'manual'),
-((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Mariam Chaudhry', '+92-308-9012345', 'mariam.c@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Talha Nawaz',     '+92-309-0123456', 'talha.nawaz@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Iqra Batool',     '+92-310-1234567', NULL, 'manual'),
-((SELECT id FROM clinics WHERE slug = 'green-valley-clinic'),  'Adeel Mirza',     '+92-311-2345678', 'adeel.mirza@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Nimra Sattar',    '+92-312-3456789', 'nimra.sattar@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Shahzaib Khan',   '+92-313-4567890', NULL, 'manual'),
-((SELECT id FROM clinics WHERE slug = 'riverside-medical'),    'Areeba Farooq',   '+92-314-5678901', 'areeba.farooq@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'sunrise-family'),       'Danish Ali',      '+92-315-6789012', 'danish.ali@example.com', 'chat'),
-((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Laiba Yousuf',    '+92-316-7890123', NULL, 'manual'),
-((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'Kiran Aslam',     '+92-317-8901234', 'kiran.aslam@example.com', 'chat')
+INSERT INTO patients (clinic_id, name, phone, email, source, age, gender, city, notes) VALUES
+((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Ahmed Raza',      '+92-300-1234567', 'ahmed.raza@example.com', 'chat',   34, 'male',   'Lahore',      NULL),
+((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'Sana Iqbal',      '+92-301-2345678', 'sana.iqbal@example.com', 'chat',   28, 'female', 'Lahore',      'Prefers evening appointments.'),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Bilal Hussain',   '+92-302-3456789', NULL,                      'manual', 45, 'male',   'Karachi',     NULL),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Fatima Sheikh',   '+92-303-4567890', 'fatima.sheikh@example.com', 'chat', 31, 'female', 'Karachi',     NULL),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'Zainab Ali',      '+92-304-5678901', NULL,                      'manual', 52, 'female', 'Karachi',     'Penicillin allergy.'),
+((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Hassan Javed',    '+92-305-6789012', 'hassan.javed@example.com', 'chat',  39, 'male',   'Islamabad',   NULL),
+((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'Ayesha Noor',     '+92-306-7890123', 'ayesha.noor@example.com', 'chat',   26, 'female', 'Islamabad',   NULL),
+((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Omar Siddiqui',   '+92-307-8901234', NULL,                      'manual', 60, 'male',   'Rawalpindi',  'Type 2 diabetic, on regular follow-up.'),
+((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'Mariam Chaudhry', '+92-308-9012345', 'mariam.c@example.com', 'chat',      33, 'female', 'Rawalpindi',  NULL),
+((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Talha Nawaz',     '+92-309-0123456', 'talha.nawaz@example.com', 'chat',   41, 'male',   'Karachi',     NULL),
+((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'Iqra Batool',     '+92-310-1234567', NULL,                      'manual', 24, 'female', 'Karachi',     NULL),
+((SELECT id FROM clinics WHERE slug = 'green-valley-clinic'),  'Adeel Mirza',     '+92-311-2345678', 'adeel.mirza@example.com', 'chat',   37, 'male',   'Faisalabad',  NULL),
+((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Nimra Sattar',    '+92-312-3456789', 'nimra.sattar@example.com', 'chat',  29, 'female', 'Lahore',      NULL),
+((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'Shahzaib Khan',   '+92-313-4567890', NULL,                      'manual', 48, 'male',   'Lahore',      NULL),
+((SELECT id FROM clinics WHERE slug = 'riverside-medical'),    'Areeba Farooq',   '+92-314-5678901', 'areeba.farooq@example.com', 'chat', 22, 'female', 'Multan',      'New mother, infant vaccination schedule.'),
+((SELECT id FROM clinics WHERE slug = 'sunrise-family'),       'Danish Ali',      '+92-315-6789012', 'danish.ali@example.com', 'chat',    35, 'male',   'Peshawar',    NULL),
+((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Laiba Yousuf',    '+92-316-7890123', NULL,                      'manual', 44, 'female', 'Islamabad',   NULL),
+((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'Kiran Aslam',     '+92-317-8901234', 'kiran.aslam@example.com', 'chat',   30, 'female', 'Multan',      'Currently in third trimester.')
 ON CONFLICT (clinic_id, phone) DO NOTHING;
 
 -- ------------------------------------------------------------
@@ -280,37 +280,34 @@ ON CONFLICT (doctor_id, slot_date, start_time) DO NOTHING;
 INSERT INTO appointments (
     clinic_id, doctor_id, patient_id, slot_id,
     appointment_date, appointment_time,
-    appointment_local_time, appointment_utc_time,
-    reason, status, language
+    reason, status, status_note, language
 )
 SELECT
     c.id, d.id, p.id, ds.id,
     v.appointment_date, v.appointment_time::text,
-    (v.appointment_date + v.appointment_time) AS appointment_local_time,
-    (v.appointment_date + v.appointment_time) AT TIME ZONE c.timezone AS appointment_utc_time,
-    v.reason, v.status, v.language
+    v.reason, v.status, v.status_note, v.language
 FROM (VALUES
-    ('al-shifa-general',     'Dr. Ayesha Khan',     '+92-300-1234567', CURRENT_DATE + 1,  '10:00'::time, 'Routine check-up',                    'confirmed', 'en'),
-    ('al-shifa-general',     'Dr. Bilal Ahmed',     '+92-301-2345678', CURRENT_DATE + 2,  '11:30'::time, 'Chest pain and shortness of breath',  'pending',   'en'),
-    ('city-care-hospital',   'Dr. Sana Malik',      '+92-302-3456789', CURRENT_DATE + 1,  '09:15'::time, 'Child fever and cough',               'confirmed', 'en'),
-    ('city-care-hospital',   'Dr. Usman Tariq',     '+92-303-4567890', CURRENT_DATE + 3,  '14:00'::time, 'Knee pain after sports injury',       'pending',   'en'),
-    ('city-care-hospital',   'Dr. Hina Farooq',     '+92-304-5678901', CURRENT_DATE - 2,  '16:30'::time, 'Acne consultation',                   'completed', 'ur'),
-    ('blue-cross-clinic',    'Dr. Kamran Sheikh',   '+92-305-6789012', CURRENT_DATE + 4,  '10:45'::time, 'Persistent sore throat',              'pending',   'en'),
-    ('blue-cross-clinic',    'Dr. Mahnoor Iqbal',   '+92-306-7890123', CURRENT_DATE + 5,  '12:00'::time, 'Prenatal check-up',                   'confirmed', 'ur'),
-    ('family-health-center', 'Dr. Farhan Qureshi',  '+92-307-8901234', CURRENT_DATE - 1,  '17:00'::time, 'Blood pressure follow-up',            'completed', 'en'),
-    ('family-health-center', 'Dr. Zara Abbasi',     '+92-308-9012345', CURRENT_DATE + 6,  '13:15'::time, 'Diet plan consultation',              'pending',   'en'),
-    ('marina-medical',       'Dr. Imran Hashmi',    '+92-309-0123456', CURRENT_DATE + 2,  '15:30'::time, 'Recurring migraines',                 'confirmed', 'en'),
-    ('marina-medical',       'Dr. Rabia Siddiqui',  '+92-310-1234567', CURRENT_DATE + 7,  '11:00'::time, 'Anxiety and sleep issues',            'pending',   'ur'),
-    ('green-valley-clinic',  'Dr. Nadeem Chaudhry', '+92-311-2345678', CURRENT_DATE - 3,  '09:30'::time, 'Seasonal flu symptoms',               'cancelled', 'en'),
-    ('al-noor-diagnostic',   'Dr. Sara Yousaf',     '+92-312-3456789', CURRENT_DATE + 1,  '10:15'::time, 'Chest X-ray',                         'confirmed', 'en'),
-    ('al-noor-diagnostic',   'Dr. Ali Raza',        '+92-313-4567890', CURRENT_DATE + 8,  '16:00'::time, 'Full body lab panel',                 'pending',   'en'),
-    ('riverside-medical',    'Dr. Mehwish Aslam',   '+92-314-5678901', CURRENT_DATE + 3,  '09:00'::time, 'Infant vaccination',                  'confirmed', 'ur'),
-    ('sunrise-family',       'Dr. Waqas Hussain',   '+92-315-6789012', CURRENT_DATE + 4,  '18:30'::time, 'Tooth cavity filling',                'pending',   'en'),
-    ('horizon-health',       'Dr. Amna Riaz',       '+92-316-7890123', CURRENT_DATE - 5,  '12:45'::time, 'Diabetes management review',          'completed', 'en'),
-    ('crescent-clinic',      'Dr. Fatima Zaidi',    '+92-317-8901234', CURRENT_DATE + 9,  '10:30'::time, 'Third trimester check-up',            'confirmed', 'ur'),
+    ('al-shifa-general',     'Dr. Ayesha Khan',     '+92-300-1234567', CURRENT_DATE + 1,  '10:00'::time, 'Routine check-up',                    'confirmed', NULL::varchar,                            'en'),
+    ('al-shifa-general',     'Dr. Bilal Ahmed',     '+92-301-2345678', CURRENT_DATE + 2,  '11:30'::time, 'Chest pain and shortness of breath',  'pending',   NULL,                                      'en'),
+    ('city-care-hospital',   'Dr. Sana Malik',      '+92-302-3456789', CURRENT_DATE + 1,  '09:15'::time, 'Child fever and cough',               'confirmed', 'Confirmed via phone call.',               'en'),
+    ('city-care-hospital',   'Dr. Usman Tariq',     '+92-303-4567890', CURRENT_DATE + 3,  '14:00'::time, 'Knee pain after sports injury',       'pending',   NULL,                                      'en'),
+    ('city-care-hospital',   'Dr. Hina Farooq',     '+92-304-5678901', CURRENT_DATE - 2,  '16:30'::time, 'Acne consultation',                   'completed', 'Follow-up in 4 weeks recommended.',      'ur'),
+    ('blue-cross-clinic',    'Dr. Kamran Sheikh',   '+92-305-6789012', CURRENT_DATE + 4,  '10:45'::time, 'Persistent sore throat',              'pending',   NULL,                                      'en'),
+    ('blue-cross-clinic',    'Dr. Mahnoor Iqbal',   '+92-306-7890123', CURRENT_DATE + 5,  '12:00'::time, 'Prenatal check-up',                   'confirmed', NULL,                                      'ur'),
+    ('family-health-center', 'Dr. Farhan Qureshi',  '+92-307-8901234', CURRENT_DATE - 1,  '17:00'::time, 'Blood pressure follow-up',            'completed', 'Blood pressure stable, continue medication.', 'en'),
+    ('family-health-center', 'Dr. Zara Abbasi',     '+92-308-9012345', CURRENT_DATE + 6,  '13:15'::time, 'Diet plan consultation',              'pending',   NULL,                                      'en'),
+    ('marina-medical',       'Dr. Imran Hashmi',    '+92-309-0123456', CURRENT_DATE + 2,  '15:30'::time, 'Recurring migraines',                 'confirmed', NULL,                                      'en'),
+    ('marina-medical',       'Dr. Rabia Siddiqui',  '+92-310-1234567', CURRENT_DATE + 7,  '11:00'::time, 'Anxiety and sleep issues',            'pending',   NULL,                                      'ur'),
+    ('green-valley-clinic',  'Dr. Nadeem Chaudhry', '+92-311-2345678', CURRENT_DATE - 3,  '09:30'::time, 'Seasonal flu symptoms',               'cancelled', 'Patient requested cancellation.',        'en'),
+    ('al-noor-diagnostic',   'Dr. Sara Yousaf',     '+92-312-3456789', CURRENT_DATE + 1,  '10:15'::time, 'Chest X-ray',                         'confirmed', NULL,                                      'en'),
+    ('al-noor-diagnostic',   'Dr. Ali Raza',        '+92-313-4567890', CURRENT_DATE + 8,  '16:00'::time, 'Full body lab panel',                 'pending',   NULL,                                      'en'),
+    ('riverside-medical',    'Dr. Mehwish Aslam',   '+92-314-5678901', CURRENT_DATE + 3,  '09:00'::time, 'Infant vaccination',                  'confirmed', NULL,                                      'ur'),
+    ('sunrise-family',       'Dr. Waqas Hussain',   '+92-315-6789012', CURRENT_DATE + 4,  '18:30'::time, 'Tooth cavity filling',                'pending',   NULL,                                      'en'),
+    ('horizon-health',       'Dr. Amna Riaz',       '+92-316-7890123', CURRENT_DATE - 5,  '12:45'::time, 'Diabetes management review',          'completed', 'HbA1c improved since last visit.',       'en'),
+    ('crescent-clinic',      'Dr. Fatima Zaidi',    '+92-317-8901234', CURRENT_DATE + 9,  '10:30'::time, 'Third trimester check-up',            'confirmed', NULL,                                      'ur'),
     -- repeat customer: Ahmed Raza (same patient as row 1) books again with a different doctor, weeks later
-    ('al-shifa-general',     'Dr. Bilal Ahmed',     '+92-300-1234567', CURRENT_DATE + 15, '11:00'::time, 'Follow-up cardiology consultation',   'pending',   'en')
-) AS v(clinic_slug, doctor_name, patient_phone, appointment_date, appointment_time, reason, status, language)
+    ('al-shifa-general',     'Dr. Bilal Ahmed',     '+92-300-1234567', CURRENT_DATE + 15, '11:00'::time, 'Follow-up cardiology consultation',   'pending',   NULL,                                      'en')
+) AS v(clinic_slug, doctor_name, patient_phone, appointment_date, appointment_time, reason, status, status_note, language)
 JOIN clinics c ON c.slug = v.clinic_slug
 JOIN doctors d ON d.name = v.doctor_name AND d.clinic_id = c.id
 JOIN patients p ON p.phone = v.patient_phone AND p.clinic_id = c.id
@@ -319,19 +316,19 @@ LEFT JOIN doctor_slots ds ON ds.doctor_id = d.id AND ds.slot_date = v.appointmen
 -- ------------------------------------------------------------
 -- conversations (12)
 -- ------------------------------------------------------------
-INSERT INTO conversations (clinic_id, session_id) VALUES
-((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'sess-a1b2c3d4-0001'),
-((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'sess-a1b2c3d4-0002'),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'sess-e5f6g7h8-0003'),
-((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'sess-e5f6g7h8-0004'),
-((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'sess-i9j0k1l2-0005'),
-((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'sess-m3n4o5p6-0006'),
-((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'sess-q7r8s9t0-0007'),
-((SELECT id FROM clinics WHERE slug = 'green-valley-clinic'),  'sess-u1v2w3x4-0008'),
-((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'sess-y5z6a7b8-0009'),
-((SELECT id FROM clinics WHERE slug = 'riverside-medical'),    'sess-c9d0e1f2-0010'),
-((SELECT id FROM clinics WHERE slug = 'sunrise-family'),       'sess-g3h4i5j6-0011'),
-((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'sess-k7l8m9n0-0012')
+INSERT INTO conversations (clinic_id, session_id, language) VALUES
+((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'sess-a1b2c3d4-0001', 'en'),
+((SELECT id FROM clinics WHERE slug = 'al-shifa-general'),     'sess-a1b2c3d4-0002', 'en'),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'sess-e5f6g7h8-0003', 'en'),
+((SELECT id FROM clinics WHERE slug = 'city-care-hospital'),   'sess-e5f6g7h8-0004', 'ur'),
+((SELECT id FROM clinics WHERE slug = 'blue-cross-clinic'),    'sess-i9j0k1l2-0005', 'en'),
+((SELECT id FROM clinics WHERE slug = 'family-health-center'), 'sess-m3n4o5p6-0006', 'ur'),
+((SELECT id FROM clinics WHERE slug = 'marina-medical'),       'sess-q7r8s9t0-0007', 'en'),
+((SELECT id FROM clinics WHERE slug = 'green-valley-clinic'),  'sess-u1v2w3x4-0008', 'en'),
+((SELECT id FROM clinics WHERE slug = 'al-noor-diagnostic'),   'sess-y5z6a7b8-0009', 'ur'),
+((SELECT id FROM clinics WHERE slug = 'riverside-medical'),    'sess-c9d0e1f2-0010', 'en'),
+((SELECT id FROM clinics WHERE slug = 'sunrise-family'),       'sess-g3h4i5j6-0011', 'en'),
+((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'sess-k7l8m9n0-0012', 'ur')
 ON CONFLICT (session_id) DO NOTHING;
 
 -- ------------------------------------------------------------

@@ -11,6 +11,7 @@ from app.repo.settings_repo import SettingsRepo
 
 EMAIL_KEY = "email"
 GENERAL_KEY = "general"
+TEMPLATES_KEY = "message_templates"
 
 DEFAULT_EMAIL_SETTINGS: Dict[str, Any] = {
     "mail_username": env_settings.MAIL_USERNAME,
@@ -24,6 +25,36 @@ DEFAULT_GENERAL_SETTINGS: Dict[str, Any] = {
     "default_language": "en",  # 'en' or 'ur' -- fallback when a message's language can't be auto-detected
     "notifications_enabled": True,  # in-app notifications (e.g. "appointment booked")
 }
+
+# Placeholders available: {patient_name}, {doctor_name}, {clinic_name},
+# {appointment_date}, {appointment_time}, {reason}
+DEFAULT_TEMPLATES: Dict[str, Any] = {
+    "patient_confirmation": (
+        "Dear {patient_name},\n\n"
+        "Your appointment with {doctor_name} at {clinic_name} has been confirmed for "
+        "{appointment_date} at {appointment_time}.\n\n"
+        "If you need to reschedule or cancel, please contact the clinic.\n\n"
+        "Thank you."
+    ),
+    "doctor_notification": (
+        "Dear {doctor_name},\n\n"
+        "An appointment with {patient_name} has been confirmed for {appointment_date} at "
+        "{appointment_time}. Reason: {reason}.\n\n"
+        "— {clinic_name}"
+    ),
+}
+
+
+async def get_message_templates(clinic_id: int) -> Dict[str, Any]:
+    row = await SettingsRepo.get(clinic_id, TEMPLATES_KEY)
+    return {**DEFAULT_TEMPLATES, **(row["value"] if row else {})}
+
+
+async def update_message_templates(clinic_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    current = await get_message_templates(clinic_id)
+    merged = {**current, **data}
+    await SettingsRepo.upsert(clinic_id, TEMPLATES_KEY, merged)
+    return merged
 
 
 async def get_general_settings(clinic_id: int) -> Dict[str, Any]:
@@ -64,3 +95,15 @@ async def update_email_settings(clinic_id: int, data: Dict[str, Any]) -> Dict[st
     merged = {**current, **incoming}
     await SettingsRepo.upsert(clinic_id, EMAIL_KEY, merged)
     return await get_email_settings(clinic_id)
+
+
+class _SafeDict(dict):
+    def __missing__(self, key):
+        return ""
+
+
+def render_template(template: str, **kwargs) -> str:
+    """Fill {placeholders} in a message template -- any variable not
+    supplied renders as blank rather than raising, so an admin's custom
+    template with a typo'd placeholder doesn't break the send."""
+    return template.format_map(_SafeDict(**kwargs))

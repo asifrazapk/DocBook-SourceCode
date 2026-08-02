@@ -9,12 +9,12 @@ falling back gracefully if two people grab the same slot at once.
 """
 
 import asyncio
+import logging
 import smtplib
 from datetime import date as date_type, datetime, time as time_type
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
-from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -23,6 +23,8 @@ from app.repo.clinic_repo import ClinicRepo
 from app.repo.schedule_repo import DoctorSlotRepo
 from app.services.patient_service import get_or_create_patient
 from app.services.settings_service import get_email_settings_for_sending
+
+logger = logging.getLogger(__name__)
 
 
 class SlotUnavailableError(Exception):
@@ -35,18 +37,6 @@ def _parse_time(value: Any) -> time_type:
     if isinstance(value, time_type):
         return value
     return time_type.fromisoformat(str(value)[:5] if len(str(value)) <= 5 else str(value))
-
-
-def _local_and_utc(appointment_date: date_type, appointment_time: str, clinic_timezone: str):
-    t = _parse_time(appointment_time)
-    local_dt = datetime.combine(appointment_date, t)
-    try:
-        utc_dt = local_dt.replace(tzinfo=ZoneInfo(clinic_timezone)).astimezone(ZoneInfo("UTC"))
-    except Exception:
-        # Unknown/bad timezone string -- fall back to naive local time only
-        # rather than failing the whole booking over a data-quality issue.
-        utc_dt = None
-    return local_dt, utc_dt
 
 
 async def list_appointments(clinic_id: int, status: Optional[str] = None) -> List[dict]:
@@ -224,10 +214,6 @@ async def _book_single_time(
     """Claim a slot (if a matching pre-generated one exists -- most setups
     don't pre-generate and rely purely on the unique-constraint backstop
     below) and create the appointment row."""
-    clinic = await ClinicRepo.get_by_id(clinic_id)
-    clinic_timezone = clinic.get("timezone") or "Asia/Karachi"
-    local_dt, utc_dt = _local_and_utc(appointment_date, appointment_time, clinic_timezone)
-
     slot_id = None
     if doctor_id:
         existing_slot = await DoctorSlotRepo.find_slot(doctor_id, appointment_date, _parse_time(appointment_time))
@@ -246,8 +232,6 @@ async def _book_single_time(
         "slot_id": slot_id,
         "appointment_date": appointment_date,
         "appointment_time": str(appointment_time),
-        "appointment_local_time": local_dt,
-        "appointment_utc_time": utc_dt,
         "reason": reason,
         "language": language,
     }
@@ -264,14 +248,95 @@ async def _book_single_time(
         ) from exc
 
 
+async def _send_templated_email(clinic_id: int, to_address: str, subject: str, body: str):
+    """Generic template-rendered email sender, used for the
+    confirm-notifies-patient-and-doctor feature (Settings > Message templates)."""
+    if not to_address:
+        return
+    email_cfg = await get_email_settings_for_sending(clinic_id)
+    if not email_cfg.get("mail_username"):
+        return
+    await asyncio.to_thread(_send_templated_email_sync, to_address, subject, body, email_cfg)
+
+
+def _send_templated_email_sync(to_address: str, subject: str, body: str, email_cfg: Dict[str, Any]):
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = email_cfg["mail_from"]
+        msg["To"] = to_address
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        with smtplib.SMTP(email_cfg["mail_server"], email_cfg["mail_port"]) as server:
+            server.starttls()
+            server.login(email_cfg["mail_username"], email_cfg["mail_password"])
+            server.sendmail(email_cfg["mail_from"], to_address, msg.as_string())
+    except Exception:
+        # Best-effort: a misconfigured SMTP server or an invalid recipient
+        # shouldn't break the confirmation flow, but it should be visible in
+        # the logs rather than silently vanishing.
+        logger.exception(f"Failed to send templated email to {to_address}")
+
+
+async def _notify_confirmation(appt: dict):
+    """Emails BOTH the patient and the doctor once an appointment is
+    actually confirmed, using the admin-editable templates in
+    Settings > Message templates. Best-effort -- a missing email address or
+    unconfigured SMTP just means that side silently doesn't get emailed."""
+    from app.services.settings_service import get_message_templates, render_template
+    from app.repo.patient_repo import PatientRepo
+    from app.repo.doctor_repo import DoctorRepo
+
+    clinic_id = appt["clinic_id"]
+    clinic = await ClinicRepo.get_by_id(clinic_id)
+    templates = await get_message_templates(clinic_id)
+
+    try:
+        patient = await PatientRepo.get_by_id(appt["patient_id"])
+    except ValueError:
+        patient = None
+    doctor = None
+    if appt.get("doctor_id"):
+        try:
+            doctor = await DoctorRepo.get_by_id(appt["doctor_id"])
+        except ValueError:
+            doctor = None
+
+    variables = {
+        "patient_name": patient.get("name") if patient else "",
+        "doctor_name": doctor.get("name") if doctor else "the clinic",
+        "clinic_name": clinic.get("name") if clinic else "",
+        "appointment_date": str(appt.get("appointment_date")),
+        "appointment_time": str(appt.get("appointment_time"))[:5],
+        "reason": appt.get("reason") or "N/A",
+    }
+
+    if patient and patient.get("email"):
+        body = render_template(templates["patient_confirmation"], **variables)
+        await _send_templated_email(clinic_id, patient["email"], "Appointment Confirmed", body)
+
+    if doctor and doctor.get("email"):
+        body = render_template(templates["doctor_notification"], **variables)
+        await _send_templated_email(clinic_id, doctor["email"], "Appointment Confirmed", body)
+
+
 async def update_appointment(appt_id: int, data: Dict[str, Any], note: Optional[str] = None) -> Optional[dict]:
     payload = dict(data)
     if note is not None:
         payload["status_note"] = note
+
+    existing = await get_appointment(appt_id)
     try:
-        return await AppointmentRepo.update(appt_id, payload)
+        updated = await AppointmentRepo.update(appt_id, payload)
     except ValueError:
         return None
+
+    # Notify patient + doctor only on the actual pending -> confirmed
+    # transition, not on every subsequent edit (e.g. adding a note later).
+    if updated and payload.get("status") == "confirmed" and existing and existing.get("status") != "confirmed":
+        await _notify_confirmation(updated)
+
+    return updated
 
 
 async def reschedule_appointment(
@@ -291,10 +356,6 @@ async def reschedule_appointment(
     appointment_time = new_time or existing["appointment_time"]
     doctor_id = existing.get("doctor_id")
 
-    clinic = await ClinicRepo.get_by_id(existing["clinic_id"])
-    clinic_timezone = clinic.get("timezone") or "Asia/Karachi"
-    local_dt, utc_dt = _local_and_utc(appointment_date, appointment_time, clinic_timezone)
-
     new_slot_id = None
     if doctor_id:
         candidate = await DoctorSlotRepo.find_slot(doctor_id, appointment_date, _parse_time(appointment_time))
@@ -310,8 +371,6 @@ async def reschedule_appointment(
         "status": "rescheduled",
         "appointment_date": appointment_date,
         "appointment_time": str(appointment_time),
-        "appointment_local_time": local_dt,
-        "appointment_utc_time": utc_dt,
         "slot_id": new_slot_id,
     }
     if note is not None:
@@ -400,4 +459,4 @@ def _send_confirmation_email_sync(appt: dict, patient: dict, email_cfg: Dict[str
             server.login(email_cfg["mail_username"], email_cfg["mail_password"])
             server.sendmail(email_cfg["mail_from"], patient["email"], msg.as_string())
     except Exception:
-        pass
+        logger.exception(f"Failed to send booking confirmation email to {patient.get('email')}")

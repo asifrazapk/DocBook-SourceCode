@@ -138,6 +138,7 @@ async def get_chat_response(
         "history": history,
         "slots": {},
         "entities": {},
+        "patient_phone": conv.get("patient_phone") or patient_phone,
     }
 
     result = await run_chat_graph(state)

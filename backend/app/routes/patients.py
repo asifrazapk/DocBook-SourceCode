@@ -15,7 +15,10 @@ class PatientCreate(BaseModel):
     phone: str
     email: str | None = None
     date_of_birth: date | None = None
+    age: int | None = None
     gender: str | None = None
+    city: str | None = None
+    address: str | None = None
     notes: str | None = None
 
 
@@ -24,7 +27,10 @@ class PatientUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     date_of_birth: date | None = None
+    age: int | None = None
     gender: str | None = None
+    city: str | None = None
+    address: str | None = None
     notes: str | None = None
     is_active: bool | None = None
 

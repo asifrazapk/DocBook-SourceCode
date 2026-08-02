@@ -85,7 +85,10 @@ export interface Patient {
   phone: string
   email: string | null
   date_of_birth: string | null
+  age: number | null
   gender: string | null
+  city: string | null
+  address: string | null
   notes: string | null
   source: 'chat' | 'manual'
   is_active: boolean
@@ -395,7 +398,10 @@ export interface PatientCreateInput {
   phone: string
   email?: string | null
   date_of_birth?: string | null
+  age?: number | null
   gender?: string | null
+  city?: string | null
+  address?: string | null
   notes?: string | null
 }
 
@@ -530,3 +536,120 @@ export const getConversationMessages = (
       page_size: params.pageSize ?? 10,
     },
   })
+
+export interface ConversationThreadMessage {
+  message_id: string
+  conversation_id: number
+  message_text: string | null
+  llm_response: string | null
+  feedback_type: number | null
+  feedback_value: string | null
+  local_created_at: string
+  overall_score: number | null
+}
+
+export const getConversationThread = (clinicId: number, conversationId: number) =>
+  api.get<ConversationThreadMessage[]>(`/conversations/${conversationId}/thread`, {
+    params: { clinic_id: clinicId },
+  })
+
+// ---------------------------------------------------------------------------
+// Medical records (prescription + report per appointment)
+// ---------------------------------------------------------------------------
+export interface MedicalRecord {
+  id: number
+  clinic_id: number
+  appointment_id: number
+  patient_id: number
+  doctor_id: number | null
+  diagnosis: string | null
+  prescription: string | null
+  notes: string | null
+  local_created_at: string
+  appointment_date?: string
+  appointment_time?: string
+  doctor_name?: string | null
+}
+
+export interface MedicalRecordUpsertInput {
+  clinic_id: number
+  appointment_id: number
+  patient_id: number
+  doctor_id?: number | null
+  diagnosis?: string | null
+  prescription?: string | null
+  notes?: string | null
+}
+
+export const upsertMedicalRecord = (data: MedicalRecordUpsertInput) => api.post<MedicalRecord>('/medical-records', data)
+
+export const getMedicalRecordForAppointment = (appointmentId: number) =>
+  api.get<MedicalRecord>(`/medical-records/by-appointment/${appointmentId}`)
+
+export const listMedicalRecordsForPatient = (patientId: number) =>
+  api.get<MedicalRecord[]>(`/medical-records/by-patient/${patientId}`)
+
+export interface ReportStats {
+  total: number
+  by_doctor: { doctor_name: string; count: number }[]
+}
+
+export const getReportStats = (clinicId: number, startDate?: string, endDate?: string) =>
+  api.get<ReportStats>('/medical-records/stats', { params: { clinic_id: clinicId, start_date: startDate, end_date: endDate } })
+
+// ---------------------------------------------------------------------------
+// Bills
+// ---------------------------------------------------------------------------
+export interface Bill {
+  id: number
+  clinic_id: number
+  appointment_id: number
+  patient_id: number
+  amount: number
+  collected_by: string
+  collected_at: string
+  notes: string | null
+  patient_name?: string
+  appointment_date?: string
+  doctor_name?: string | null
+}
+
+export interface BillCreateInput {
+  clinic_id: number
+  appointment_id: number
+  amount: number
+  collected_by: string
+  collected_at?: string
+  notes?: string | null
+}
+
+export const getBills = (clinicId: number, params: { startDate?: string; endDate?: string; page?: number; pageSize?: number } = {}) =>
+  api.get<Paginated<Bill>>('/bills', {
+    params: {
+      clinic_id: clinicId,
+      start_date: params.startDate,
+      end_date: params.endDate,
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 10,
+    },
+  })
+
+export const getBillsSummary = (clinicId: number, startDate?: string, endDate?: string) =>
+  api.get<{ total_collected: number }>('/bills/summary', { params: { clinic_id: clinicId, start_date: startDate, end_date: endDate } })
+
+export const createBill = (data: BillCreateInput) => api.post<Bill>('/bills', data)
+export const deleteBill = (billId: number) => api.delete(`/bills/${billId}`)
+
+// ---------------------------------------------------------------------------
+// Message templates
+// ---------------------------------------------------------------------------
+export interface MessageTemplates {
+  patient_confirmation: string
+  doctor_notification: string
+}
+
+export const getMessageTemplates = (clinicId: number) =>
+  api.get<MessageTemplates>('/settings/message-templates', { params: { clinic_id: clinicId } })
+
+export const updateMessageTemplates = (clinicId: number, data: Partial<MessageTemplates>) =>
+  api.put<MessageTemplates>('/settings/message-templates', data, { params: { clinic_id: clinicId } })

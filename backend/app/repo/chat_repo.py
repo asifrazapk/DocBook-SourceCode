@@ -39,6 +39,27 @@ class ChatMessageRepo(BasePostgresModel):
             return [dict(r) for r in rows]
 
     @classmethod
+    async def list_thread_with_eval(cls, clinic_id: int, conversation_id: int) -> list[dict]:
+        """Every message in one conversation, chronological, with feedback and
+        eval score joined in -- backs the admin 'View thread' action so a
+        multi-turn conversation can be reviewed as a whole instead of piecing
+        it together from scattered rows on the flat messages table."""
+        async with get_read_pool().acquire() as conn:
+            query = """
+            SELECT
+                m.message_id, m.conversation_id, m.message_text, m.llm_response,
+                m.feedback_type, m.feedback_value, m.local_created_at,
+                e.overall_score
+            FROM messages m
+            JOIN conversations c ON c.id = m.conversation_id
+            LEFT JOIN llm_evaluations e ON e.message_id = m.message_id
+            WHERE m.conversation_id = $1 AND c.clinic_id = $2
+            ORDER BY m.local_created_at ASC
+            """
+            rows = await conn.fetch(query, conversation_id, clinic_id)
+            return [dict(r) for r in rows]
+
+    @classmethod
     async def create_turn(
         cls,
         conversation_id: int,

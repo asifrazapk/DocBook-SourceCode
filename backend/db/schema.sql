@@ -25,8 +25,7 @@
 -- messages -> conversations -> clinics), so local_created_at/local_updated_at
 -- default to the same UTC instant as a safe placeholder. The application
 -- layer is expected to overwrite them with the real clinic-local conversion
--- whenever it knows which clinic a row belongs to -- the same pattern
--- already used for appointments.appointment_local_time/appointment_utc_time.
+-- whenever it knows which clinic a row belongs to.
 -- ============================================================
 
 BEGIN;
@@ -226,7 +225,10 @@ CREATE TABLE IF NOT EXISTS patients (
     phone               VARCHAR NOT NULL,
     email               VARCHAR,
     date_of_birth       DATE,
+    age                 INTEGER,  -- approximate age when exact date_of_birth isn't known
     gender              VARCHAR,
+    city                VARCHAR,  -- living area / city
+    address             VARCHAR,  -- fuller address, optional
     notes               VARCHAR,
     source              VARCHAR NOT NULL DEFAULT 'manual',  -- 'chat' (self-booked via the assistant) or 'manual' (added by an admin)
     is_active           BOOLEAN NOT NULL DEFAULT true,
@@ -271,16 +273,6 @@ CREATE INDEX IF NOT EXISTS ix_faqs_clinic_id ON faqs (clinic_id);
 -- tie back to one patient record, and optionally to a pre-generated
 -- doctor_slots row.
 --
--- appointment_local_time  -> wall-clock time in the clinic's own
---                            timezone (clinics.timezone), what
---                            staff/patients should see displayed
--- appointment_utc_time    -> the same instant converted to UTC
---                            ("server time"), used for sorting,
---                            reminders, and cross-clinic comparisons
--- These two are the appointment's *scheduled* time, distinct from the
--- local_created_at/server_created_at audit columns below (which track
--- when the row itself was created/updated).
---
 -- The UNIQUE index below is a backstop against double-booking a
 -- doctor for the same date/time even if the doctor_slots claim is
 -- bypassed somehow (e.g. a direct insert, or slots not in use yet).
@@ -294,8 +286,6 @@ CREATE TABLE IF NOT EXISTS appointments (
     slot_id                 INTEGER REFERENCES doctor_slots (id) ON DELETE SET NULL,
     appointment_date        DATE NOT NULL,
     appointment_time        VARCHAR NOT NULL,
-    appointment_local_time  TIMESTAMP,      -- clinic-local wall clock of the visit
-    appointment_utc_time    TIMESTAMPTZ,    -- same instant, UTC ("server time") of the visit
     reason                  VARCHAR,
     status                  VARCHAR NOT NULL DEFAULT 'pending',
     status_note              VARCHAR,        -- comment/reason captured on the most recent status change (confirm/cancel/reschedule/complete)
@@ -311,11 +301,61 @@ CREATE TABLE IF NOT EXISTS appointments (
 CREATE INDEX IF NOT EXISTS ix_appointments_clinic_id ON appointments (clinic_id);
 CREATE INDEX IF NOT EXISTS ix_appointments_patient_id ON appointments (patient_id);
 CREATE INDEX IF NOT EXISTS ix_appointments_slot_id ON appointments (slot_id);
-CREATE INDEX IF NOT EXISTS ix_appointments_utc_time ON appointments (appointment_utc_time);
 CREATE INDEX IF NOT EXISTS ix_appointments_is_active ON appointments (is_active);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_appointments_doctor_slot
     ON appointments (doctor_id, appointment_date, appointment_time)
     WHERE status != 'cancelled' AND NOT is_deleted;
+
+-- ------------------------------------------------------------
+-- medical_records (prescription + report per appointment)
+-- ------------------------------------------------------------
+-- One record per appointment, added by the admin/doctor after the visit.
+-- Patients retrieve their own record later via appointment number or
+-- patient number (phone-verified -- see app/services/medical_record_service.py).
+CREATE TABLE IF NOT EXISTS medical_records (
+    id                  SERIAL PRIMARY KEY,
+    user_id             INTEGER REFERENCES users (id),
+    clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
+    appointment_id      INTEGER NOT NULL REFERENCES appointments (id) ON DELETE CASCADE,
+    patient_id          INTEGER NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
+    doctor_id           INTEGER REFERENCES doctors (id) ON DELETE SET NULL,
+    diagnosis           VARCHAR,        -- report / findings
+    prescription        VARCHAR,        -- medications, dosage, instructions
+    notes               VARCHAR,
+    is_deleted          BOOLEAN NOT NULL DEFAULT false,
+    local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    local_updated_at    TIMESTAMP,
+    server_created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    server_updated_at   TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_medical_records_clinic_id ON medical_records (clinic_id);
+CREATE INDEX IF NOT EXISTS ix_medical_records_appointment_id ON medical_records (appointment_id);
+CREATE INDEX IF NOT EXISTS ix_medical_records_patient_id ON medical_records (patient_id);
+
+-- ------------------------------------------------------------
+-- bills (manually recorded payment against a confirmed appointment)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS bills (
+    id                  SERIAL PRIMARY KEY,
+    user_id             INTEGER REFERENCES users (id),
+    clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
+    appointment_id      INTEGER NOT NULL REFERENCES appointments (id) ON DELETE CASCADE,
+    patient_id          INTEGER NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
+    amount              NUMERIC(10, 2) NOT NULL,
+    collected_by        VARCHAR NOT NULL,   -- staff member's name who took the payment
+    collected_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes               VARCHAR,
+    is_deleted          BOOLEAN NOT NULL DEFAULT false,
+    local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    local_updated_at    TIMESTAMP,
+    server_created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    server_updated_at   TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_bills_clinic_id ON bills (clinic_id);
+CREATE INDEX IF NOT EXISTS ix_bills_appointment_id ON bills (appointment_id);
+CREATE INDEX IF NOT EXISTS ix_bills_collected_at ON bills (collected_at);
 
 -- ------------------------------------------------------------
 -- conversations

@@ -32,6 +32,7 @@ from app.graph.nodes import (
     doctor_lookup_node,
     faq_node,
     intent_node,
+    medical_record_node,
     merge_state_node,
     preprocess_node,
     reschedule_node,
@@ -69,6 +70,7 @@ def build_chat_graph():
     graph.add_node("clinic_info", clinic_info_node)
     graph.add_node("cancel", cancel_node)
     graph.add_node("reschedule", reschedule_node)
+    graph.add_node("medical_record", medical_record_node)
     graph.add_node("save_memory", save_memory_node)
     graph.add_node("response", response_node)
 
@@ -92,6 +94,7 @@ def build_chat_graph():
             "validator": "validator",
             "cancel": "cancel",
             "reschedule": "reschedule",
+            "medical_record": "medical_record",
             "save_memory": "save_memory",
         },
     )
@@ -130,6 +133,7 @@ def build_chat_graph():
         "booking",
         "cancel",
         "reschedule",
+        "medical_record",
     ):
         graph.add_edge(node, "save_memory")
 

@@ -102,7 +102,7 @@ export default function PatientsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Patient', 'Phone', 'Email', 'Source', 'Added', ''].map((h) => (
+                  {['Patient', 'Phone', 'Email', 'Age', 'City', 'Source', 'Added', ''].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500">{h}</th>
                   ))}
                 </tr>
@@ -123,6 +123,8 @@ export default function PatientsPage() {
                     </td>
                     <td className="px-5 py-3 text-slate-500">{p.phone}</td>
                     <td className="px-5 py-3 text-slate-500">{p.email ?? '—'}</td>
+                    <td className="px-5 py-3 text-slate-500 text-xs">{p.age ?? '—'}</td>
+                    <td className="px-5 py-3 text-slate-500 text-xs">{p.city ?? '—'}</td>
                     <td className="px-5 py-3">
                       {p.source === 'chat' ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700">
@@ -198,7 +200,10 @@ function PatientFormModal({
   const [phone, setPhone] = useState(patient?.phone ?? '')
   const [email, setEmail] = useState(patient?.email ?? '')
   const [dob, setDob] = useState(patient?.date_of_birth ?? '')
+  const [age, setAge] = useState(patient?.age?.toString() ?? '')
   const [gender, setGender] = useState(patient?.gender ?? '')
+  const [city, setCity] = useState(patient?.city ?? '')
+  const [address, setAddress] = useState(patient?.address ?? '')
   const [notes, setNotes] = useState(patient?.notes ?? '')
   const [isActive, setIsActive] = useState(patient?.is_active ?? true)
   const [submitting, setSubmitting] = useState(false)
@@ -218,7 +223,10 @@ function PatientFormModal({
           phone,
           email: email || null,
           date_of_birth: dob || null,
+          age: age ? Number(age) : null,
           gender: gender || null,
+          city: city || null,
+          address: address || null,
           notes: notes || null,
           is_active: isActive,
         })
@@ -229,7 +237,10 @@ function PatientFormModal({
           phone,
           email: email || null,
           date_of_birth: dob || null,
+          age: age ? Number(age) : null,
           gender: gender || null,
+          city: city || null,
+          address: address || null,
           notes: notes || null,
         })
       }
@@ -271,6 +282,11 @@ function PatientFormModal({
           <Field label="Date of birth">
             <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
           </Field>
+          <Field label="Age" hint="Approximate, if date of birth isn't known">
+            <Input type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Gender">
             <Select value={gender} onChange={(e) => setGender(e.target.value)}>
               <option value="">Not specified</option>
@@ -279,7 +295,13 @@ function PatientFormModal({
               <option value="other">Other</option>
             </Select>
           </Field>
+          <Field label="City / living area">
+            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Lahore" />
+          </Field>
         </div>
+        <Field label="Address (optional)">
+          <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+        </Field>
         <Field label="Notes">
           <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Allergies, ongoing conditions, etc." />
         </Field>

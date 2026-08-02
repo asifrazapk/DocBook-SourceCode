@@ -20,6 +20,7 @@ class ChatState(TypedDict, total=False):
     raw_message: str                # original, untouched message
     history: List[Dict[str, str]]   # prior [{role, content}] turns
     messages: List[Any]             # LLM buffer for the response composer
+    patient_phone: Optional[str]    # verified identity from chat login, if any
 
     # -- Preprocess --------------------------------------------------------
     is_emergency: bool
@@ -39,6 +40,7 @@ class ChatState(TypedDict, total=False):
     matched_clinic: Optional[Dict[str, Any]]
     doctors: List[Dict[str, Any]]
     availability: Optional[Dict[str, Any]]   # {"available": bool, "message": str}
+    medical_records: List[Dict[str, Any]]    # phone-verified prescription/report lookup result
 
     # -- Confirmation / actions --------------------------------------------
     needs_confirmation: bool

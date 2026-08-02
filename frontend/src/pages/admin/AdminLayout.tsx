@@ -10,6 +10,7 @@ import {
   BarChart3,
   MessagesSquare,
   CreditCard,
+  FileSpreadsheet,
   Settings as SettingsIcon,
   LogOut,
   ChevronsLeft,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { to: 'faqs', icon: HelpCircle, label: 'FAQs' },
   { to: 'clinics', icon: Building2, label: 'Clinics' },
   { to: 'analytics', icon: BarChart3, label: 'Analytics' },
+  { to: 'reports', icon: FileSpreadsheet, label: 'Reports' },
   { to: 'billing', icon: CreditCard, label: 'Billing' },
   { to: 'settings', icon: SettingsIcon, label: 'App settings' },
 ]
@@ -71,8 +73,11 @@ export default function AdminLayout() {
         const res = await getRecentAppointments(clinicId, since)
         if (cancelled) return
         for (const appt of res.data) {
+          const who = `${appt.patient_name ?? 'a patient'}${appt.doctor_name ? ` with ${appt.doctor_name}` : ''}`
           notify(
-            `New appointment booked for ${appt.patient_name ?? 'a patient'}${appt.doctor_name ? ` with ${appt.doctor_name}` : ''} on ${appt.appointment_date}.`
+            appt.status === 'pending'
+              ? `New appointment request from ${who} on ${appt.appointment_date} — needs confirmation.`
+              : `New appointment booked for ${who} on ${appt.appointment_date}.`
           )
         }
         if (res.data.length > 0) since = new Date().toISOString()

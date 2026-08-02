@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, MessageSquare, UserPlus, Layers, CheckCircle2, Clock3, XCircle } from 'lucide-react'
+import { ArrowLeft, MessageSquare, UserPlus, Layers, CheckCircle2, Clock3, XCircle, FileText } from 'lucide-react'
 import {
   getPatient,
   getPatientAppointments,
   updateAppointment,
   cancelAppointment,
+  getMedicalRecordForAppointment,
+  upsertMedicalRecord,
+  listMedicalRecordsForPatient,
   type Patient,
   type Appointment,
+  type MedicalRecord,
 } from '../../services/api'
 import { Card, Spinner, EmptyState } from '../../components/ui/Card'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import Modal from '../../components/ui/Modal'
+import Button from '../../components/ui/Button'
+import { Field, Textarea } from '../../components/ui/Field'
 import { useToast } from '../../components/ui/Toast'
 import { statusStyle, avatarColor, initials } from '../../theme'
 import { useTheme } from '../../context/ThemeContext'
@@ -23,15 +30,18 @@ export default function PatientDetailPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [cancelling, setCancelling] = useState<Appointment | null>(null)
+  const [recordingFor, setRecordingFor] = useState<Appointment | null>(null)
+  const [medicalHistory, setMedicalHistory] = useState<MedicalRecord[]>([])
   const [cancelLoading, setCancelLoading] = useState(false)
 
   const load = () => {
     if (!id) return
     setLoading(true)
-    Promise.all([getPatient(Number(id)), getPatientAppointments(Number(id))])
-      .then(([p, a]) => {
+    Promise.all([getPatient(Number(id)), getPatientAppointments(Number(id)), listMedicalRecordsForPatient(Number(id))])
+      .then(([p, a, mr]) => {
         setPatient(p.data)
         setAppointments(a.data)
+        setMedicalHistory(mr.data)
       })
       .finally(() => setLoading(false))
   }
@@ -101,6 +111,12 @@ export default function PatientDetailPage() {
             <h1 className="text-lg font-bold text-slate-900">{patient.name}</h1>
             <p className="text-sm text-slate-400">
               ID: #{String(patient.id).padStart(6, '0')} | {patient.phone}
+              {(patient.age != null || patient.gender || patient.city) && ' | '}
+              {patient.age != null && `${patient.age} yrs`}
+              {patient.age != null && patient.gender && ', '}
+              {patient.gender}
+              {(patient.age != null || patient.gender) && patient.city && ' · '}
+              {patient.city}
             </p>
             <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
               {patient.source === 'chat' ? (
@@ -158,6 +174,9 @@ export default function PatientDetailPage() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1 justify-end flex-wrap">
+                        <button onClick={() => setRecordingFor(a)} className="text-xs font-semibold hover:bg-slate-100 px-2 py-1 rounded" style={{ color: colors.primary }}>
+                          Prescription
+                        </button>
                         {a.status === 'pending' && (
                           <button onClick={() => markStatus(a, 'confirmed')} className="text-xs font-semibold text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded">
                             Confirm
@@ -183,6 +202,33 @@ export default function PatientDetailPage() {
         )}
       </Card>
 
+      {/* Medical history — every prescription/report across all visits */}
+      <Card noPad>
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-900 text-sm">Medical History</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Every prescription and report on file for this patient.</p>
+        </div>
+        {medicalHistory.length === 0 ? (
+          <EmptyState icon={<FileText size={28} />} title="No records yet" subtitle="Add one from the appointment history above." />
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {medicalHistory.map((r) => (
+              <div key={r.id} className="px-5 py-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-sm font-semibold text-slate-800">
+                    {r.appointment_date} {r.doctor_name ? `— ${r.doctor_name}` : ''}
+                  </p>
+                  <span className="text-xs text-slate-400">{r.local_created_at?.slice(0, 10)}</span>
+                </div>
+                {r.diagnosis && <p className="text-xs text-slate-600 mb-1"><span className="font-semibold text-slate-500">Diagnosis:</span> {r.diagnosis}</p>}
+                {r.prescription && <p className="text-xs text-slate-600 mb-1"><span className="font-semibold text-slate-500">Prescription:</span> {r.prescription}</p>}
+                {r.notes && <p className="text-xs text-slate-400"><span className="font-semibold">Notes:</span> {r.notes}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <ConfirmDialog
         open={!!cancelling}
         title="Cancel appointment"
@@ -192,7 +238,90 @@ export default function PatientDetailPage() {
         onCancel={() => setCancelling(null)}
         loading={cancelLoading}
       />
+
+      {recordingFor && patient && (
+        <MedicalRecordModal appointment={recordingFor} patient={patient} onClose={() => { setRecordingFor(null); load() }} />
+      )}
     </div>
+  )
+}
+
+function MedicalRecordModal({ appointment, patient, onClose }: { appointment: Appointment; patient: Patient; onClose: () => void }) {
+  const toast = useToast()
+  const [diagnosis, setDiagnosis] = useState('')
+  const [prescription, setPrescription] = useState('')
+  const [notes, setNotes] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    getMedicalRecordForAppointment(appointment.id)
+      .then((r) => {
+        setDiagnosis(r.data.diagnosis ?? '')
+        setPrescription(r.data.prescription ?? '')
+        setNotes(r.data.notes ?? '')
+      })
+      .catch(() => {
+        /* no record yet -- start blank */
+      })
+      .finally(() => setLoading(false))
+  }, [appointment.id])
+
+  const submit = async () => {
+    setSubmitting(true)
+    try {
+      await upsertMedicalRecord({
+        clinic_id: appointment.clinic_id,
+        appointment_id: appointment.id,
+        patient_id: patient.id,
+        doctor_id: appointment.doctor_id ?? null,
+        diagnosis: diagnosis || null,
+        prescription: prescription || null,
+        notes: notes || null,
+      })
+      toast.show('Prescription & report saved.')
+      onClose()
+    } catch {
+      toast.show('Could not save.', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      title={`Prescription — ${appointment.appointment_date}`}
+      onClose={onClose}
+      width="lg"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} loading={submitting}>Save</Button>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <Spinner />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-slate-400">
+            The patient can retrieve this later using appointment #{appointment.id} or their patient number, verified against their phone.
+          </p>
+          <Field label="Report / diagnosis">
+            <Textarea rows={3} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Findings, diagnosis…" />
+          </Field>
+          <Field label="Prescription">
+            <Textarea rows={4} value={prescription} onChange={(e) => setPrescription(e.target.value)} placeholder="Medications, dosage, instructions…" />
+          </Field>
+          <Field label="Notes (optional)">
+            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </Field>
+        </div>
+      )}
+    </Modal>
   )
 }
 

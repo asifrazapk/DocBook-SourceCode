@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Info, ThumbsUp, ThumbsDown, AlertTriangle } from 'lucide-react'
 import { useClinic } from '../../context/ClinicContext'
 import { useTheme } from '../../context/ThemeContext'
-import { getAnalyticsOverview, type AnalyticsOverview } from '../../services/api'
+import { getAnalyticsOverview, getReportStats, type AnalyticsOverview, type ReportStats } from '../../services/api'
 import { Card, PageHeader, Spinner, EmptyState } from '../../components/ui/Card'
 import { BarChart, Sparkline } from '../../components/ui/Charts'
 
@@ -87,6 +87,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [tooltip, setTooltip] = useState<string | null>(null)
+  const [reportStats, setReportStats] = useState<ReportStats | null>(null)
 
   useEffect(() => {
     if (!clinicId) return
@@ -94,6 +95,7 @@ export default function AnalyticsPage() {
     getAnalyticsOverview(clinicId, startDate, endDate)
       .then((r) => setData(r.data))
       .finally(() => setLoading(false))
+    getReportStats(clinicId, startDate, endDate).then((r) => setReportStats(r.data))
   }, [clinicId, startDate, endDate])
 
   const messageChart = useMemo(
@@ -304,6 +306,29 @@ export default function AnalyticsPage() {
                 </tbody>
               </table>
             )}
+          </Card>
+
+          {/* Reports (prescriptions/medical records issued) */}
+          <Card noPad>
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h2 className="font-bold text-slate-900 text-sm">Reports</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Prescriptions & reports issued in the selected range.</p>
+            </div>
+            <div className="p-5">
+              <p className="text-2xl font-bold mb-3" style={{ color: colors.primary }}>{reportStats?.total ?? 0}</p>
+              {!reportStats || reportStats.by_doctor.length === 0 ? (
+                <p className="text-xs text-slate-400">No reports issued in this range.</p>
+              ) : (
+                <div className="space-y-2">
+                  {reportStats.by_doctor.map((row) => (
+                    <div key={row.doctor_name} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">{row.doctor_name}</span>
+                      <span className="font-semibold text-slate-800">{row.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </Card>
         </>
       )}

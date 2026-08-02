@@ -94,6 +94,16 @@ Reply rules:
   another date rather than listing nothing.
 - If "schedule" (a doctor's weekly hours) is present: summarise it briefly by
   day rather than repeating every field verbatim.
+- If "records" is present (a prescription/report lookup): if the list is
+  empty and "not_logged_in" is true, explain you need their verified phone
+  (they should already be logged in) and can't show records without it. If
+  the list is empty otherwise, say plainly no record was found for that
+  appointment/patient number (or none on file yet) and suggest checking the
+  number or contacting the clinic. If non-empty, for EACH record show the
+  appointment date, doctor, diagnosis/report, and prescription clearly
+  labelled (e.g. "**Diagnosis:**", "**Prescription:**") -- these are the
+  patient's own medical details, present them completely and exactly as
+  given, never summarised or trimmed.
 - No markdown headings.
 
 {QUICK_REPLY_RULES}

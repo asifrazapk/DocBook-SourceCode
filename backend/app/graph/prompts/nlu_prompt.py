@@ -20,6 +20,9 @@ _INTENT_GUIDE = """\
 - doctor_info: questions about doctors, specialties, who is available
 - clinic_info: address, phone, opening hours, location, parking
 - faq: general questions likely answered by the clinic's FAQ list
+- view_prescription: patient wants to see/retrieve their prescription, report,
+  or medical record from a past visit (e.g. "show my prescription", "what did
+  the doctor prescribe last time", "get my report for appointment 20")
 - greeting: hello / thanks / small talk with no request
 - emergency: medical emergency or urgent danger to life
 - other: anything that fits none of the above\
