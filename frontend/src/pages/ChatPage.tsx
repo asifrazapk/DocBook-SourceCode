@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Send, ShieldAlert, RefreshCw, Mic, MicOff, HelpCircle } from 'lucide-react'
+import { Send, ShieldAlert, RefreshCw, Mic, MicOff, HelpCircle, CalendarCheck } from 'lucide-react'
 import ChatWindow, { type ChatMessage } from '../components/ChatWindow'
 import QuickReplies from '../components/QuickReplies'
 import ClinicSelector from '../components/ClinicSelector'
@@ -197,6 +198,20 @@ export default function ChatPage() {
               <ShieldAlert size={12} /> Emergency: 1122
             </span>
             <ThemeColorPicker />
+            <Link
+              to="/my-appointments"
+              className="hidden sm:flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+              title="Check your appointment status"
+            >
+              <CalendarCheck size={13} /> My Appointments
+            </Link>
+            <Link
+              to="/voice"
+              className="hidden sm:flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+              title="Speak instead of typing"
+            >
+              <Mic size={13} /> Voice
+            </Link>
             <div className="flex items-center bg-slate-100 rounded-lg p-0.5" role="group" aria-label="Chat language">
               <button
                 onClick={() => setLang('en')}

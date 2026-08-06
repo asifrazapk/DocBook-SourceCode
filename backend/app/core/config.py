@@ -27,12 +27,22 @@ class Settings(BaseSettings):
     AZURE_OPENAI_MODEL_SM: str
     AZURE_OPENAI_PREVIEW_API_VERSION_SM: str = "2024-12-01-preview"
 
+    # ElevenLabs (text-to-speech for the voice chat interface). Optional --
+    # if unset, voice replies fall back to no audio (text-only).
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = "JBFqnCBsd6RMkjVDRZzb"
+
     # Mail
     MAIL_USERNAME: str = ""
     MAIL_PASSWORD: str = ""
     MAIL_FROM: str = "noreply@medibot.pk"
     MAIL_PORT: int = 587
     MAIL_SERVER: str = "smtp.gmail.com"
+
+    # Auth
+    JWT_SECRET: str = "dev-only-change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
 
 settings = Settings()

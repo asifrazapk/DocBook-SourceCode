@@ -104,12 +104,13 @@ export interface Appointment {
   slot_id: number | null
   appointment_date: string
   appointment_time: string
-  appointment_local_time: string | null
-  appointment_utc_time: string | null
   reason: string | null
   status: string
   status_note?: string | null
   language: string
+  is_telemedicine?: boolean
+  video_room_key?: string | null
+  reminder_sent_at?: string | null
   is_active: boolean
   // Enriched by the backend for display convenience:
   patient_name?: string | null
@@ -336,9 +337,15 @@ export const createDoctorWithAvailability = (
     weekly_availability: weeklyAvailability,
   })
 
-export const updateDoctor = (id: number, data: Partial<Omit<Doctor, 'id' | 'clinic_id'>>) =>
+export const updateDoctor = (id: number, data: Partial<Omit<Doctor, 'id'>>) =>
   api.patch<Doctor>(`/doctors/${id}`, data)
 export const deleteDoctor = (id: number) => api.delete(`/doctors/${id}`)
+
+export interface DoctorWithClinic extends Doctor {
+  clinic_name: string
+  clinic_slug: string
+}
+export const getAllDoctorsWithClinic = () => api.get<DoctorWithClinic[]>('/doctors/all-clinics')
 
 // ---------------------------------------------------------------------------
 // Doctor schedule: recurring availability, leaves, pre-generated slots
@@ -465,12 +472,12 @@ export interface AppointmentBookResult {
 export const createAppointment = (data: AppointmentCreateInput) =>
   api.post<AppointmentBookResult>('/appointments', data)
 
-export const updateAppointment = (id: number, data: { status: string; note?: string | null }) =>
+export const updateAppointment = (id: number, data: { status?: string; note?: string | null; is_telemedicine?: boolean }) =>
   api.patch<Appointment>(`/appointments/${id}`, data)
 
 export const rescheduleAppointment = (
   id: number,
-  data: { appointment_date?: string; appointment_time?: string; note?: string | null }
+  data: { appointment_date?: string; appointment_time?: string; doctor_id?: number; note?: string | null }
 ) => api.post<Appointment>(`/appointments/${id}/reschedule`, data)
 
 export const cancelAppointment = (id: number, note?: string | null) =>
@@ -653,3 +660,139 @@ export const getMessageTemplates = (clinicId: number) =>
 
 export const updateMessageTemplates = (clinicId: number, data: Partial<MessageTemplates>) =>
   api.put<MessageTemplates>('/settings/message-templates', data, { params: { clinic_id: clinicId } })
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+export interface AuthUser {
+  sub?: string
+  id?: number
+  name: string
+  email?: string
+  role: 'admin' | 'doctor' | 'staff'
+  clinic_id: number | null
+  doctor_id: number | null
+}
+
+export const login = (email: string, password: string) =>
+  api.post<{ token: string; user: AuthUser }>('/auth/login', { email, password })
+
+export const registerUser = (data: { name: string; email: string; password: string; role?: string; clinic_id?: number; doctor_id?: number }) =>
+  api.post<AuthUser>('/auth/register', data)
+
+export const getMe = () => api.get<AuthUser>('/auth/me')
+
+// ---------------------------------------------------------------------------
+// Doctor portal (scoped to the logged-in doctor's JWT)
+// ---------------------------------------------------------------------------
+export const getMySchedule = (onDate: string) =>
+  api.get<DoctorDaySchedule>('/doctor-portal/schedule', { params: { on_date: onDate } })
+
+export const getMyAppointments = (status?: string, startDate?: string, endDate?: string) =>
+  api.get<Appointment[]>('/doctor-portal/appointments', { params: { status, start_date: startDate, end_date: endDate } })
+
+export const addMyPrescription = (data: { appointment_id: number; patient_id: number; diagnosis?: string | null; prescription?: string | null; notes?: string | null }) =>
+  api.post('/doctor-portal/prescriptions', data)
+
+export const rescheduleMyAppointment = (appointmentId: number, data: { new_date?: string; new_time?: string; note?: string | null }) =>
+  api.post<Appointment>(`/doctor-portal/appointments/${appointmentId}/reschedule`, data)
+
+export const cancelMyAppointment = (appointmentId: number, note?: string | null) =>
+  api.post<Appointment>(`/doctor-portal/appointments/${appointmentId}/cancel`, { note })
+
+// ---------------------------------------------------------------------------
+// Waitlist
+// ---------------------------------------------------------------------------
+export interface WaitlistEntry {
+  id: number
+  clinic_id: number
+  doctor_id: number
+  patient_id: number
+  desired_date: string
+  status: string
+  patient_name?: string
+  patient_phone?: string
+  doctor_name?: string
+}
+
+export const getWaitlist = (clinicId: number) => api.get<WaitlistEntry[]>('/waitlist', { params: { clinic_id: clinicId } })
+
+export const addToWaitlist = (data: { clinic_id: number; doctor_id: number; patient_id: number; desired_date: string }) =>
+  api.post<WaitlistEntry>('/waitlist', data)
+
+// ---------------------------------------------------------------------------
+// Reviews
+// ---------------------------------------------------------------------------
+export interface Review {
+  id: number
+  clinic_id: number
+  appointment_id: number
+  patient_id: number
+  doctor_id: number | null
+  rating: number
+  comment: string | null
+  is_public: boolean
+  local_created_at: string
+  patient_name?: string
+  doctor_name?: string
+}
+
+export const getPublicReviews = (clinicId: number) => api.get<Review[]>('/reviews/public', { params: { clinic_id: clinicId } })
+export const getAllReviews = (clinicId: number) => api.get<Review[]>('/reviews', { params: { clinic_id: clinicId } })
+export const getReviewSummary = (clinicId: number) =>
+  api.get<{ count: number; average: number }>('/reviews/summary', { params: { clinic_id: clinicId } })
+export const submitReview = (data: { clinic_id: number; appointment_id: number; patient_id: number; doctor_id?: number | null; rating: number; comment?: string | null }) =>
+  api.post<Review>('/reviews', data)
+export const setReviewVisibility = (reviewId: number, isPublic: boolean) =>
+  api.patch(`/reviews/${reviewId}/visibility`, { is_public: isPublic })
+
+// ---------------------------------------------------------------------------
+// Reminders (needs a real scheduler to call this automatically — see
+// app/services/appointment_service.py's send_due_reminders docstring)
+// ---------------------------------------------------------------------------
+export const getMyAppointmentsByPhone = (clinicId: number, phone: string) =>
+  api.get<Appointment[]>('/appointments/mine', { params: { clinic_id: clinicId, phone } })
+
+export const patientRescheduleAppointment = (
+  appointmentId: number,
+  data: { clinic_id: number; phone: string; appointment_date?: string; appointment_time?: string }
+) => api.post<Appointment>(`/appointments/mine/${appointmentId}/reschedule`, data)
+
+export const patientCancelAppointment = (appointmentId: number, clinicId: number, phone: string) =>
+  api.post<Appointment>(`/appointments/mine/${appointmentId}/cancel`, { clinic_id: clinicId, phone })
+
+export const getMyMedicalRecordsByPhone = (clinicId: number, phone: string) =>
+  api.get<MedicalRecord[]>('/medical-records/mine', { params: { clinic_id: clinicId, phone } })
+
+export const sendDueReminders = (clinicId: number) => api.post<{ checked: number; sent: number }>('/appointments/send-reminders', null, { params: { clinic_id: clinicId } })
+
+// ---------------------------------------------------------------------------
+// Voice chat (speech-to-text via Whisper, text-to-speech via ElevenLabs —
+// both configured server-side; if either is unset the backend returns a
+// clean 503 rather than failing silently)
+// ---------------------------------------------------------------------------
+export interface VoiceMessageResult {
+  patient_text: string
+  reply: string
+  quick_replies: string[]
+  message_id: string
+  language: string
+  reply_audio_base64: string | null
+}
+
+export const sendVoiceMessage = (
+  clinicId: number,
+  sessionId: string,
+  message: string,
+  patientPhone?: string,
+  patientName?: string,
+  language?: string
+) =>
+  api.post<VoiceMessageResult>('/voice/message', {
+    clinic_id: clinicId,
+    session_id: sessionId,
+    message,
+    patient_phone: patientPhone,
+    patient_name: patientName,
+    language,
+  })

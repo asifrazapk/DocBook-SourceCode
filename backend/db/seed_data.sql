@@ -60,7 +60,8 @@ INSERT INTO doctors (clinic_id, name, specialty, bio, email, phone, years_of_exp
 ((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Dr. Amna Riaz',        'Endocrinologist',     'Manages diabetes, thyroid, and hormonal disorders.', 'amna.riaz@horizonhealth.pk',  '+92-300-1000017', 11, 2013, 'MBBS, FCPS (Endocrinology)', 30),
 ((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Dr. Tariq Javed',      'Urologist',           'Specializes in kidney and urinary tract conditions.', 'tariq.javed@horizonhealth.pk','+92-300-1000018', 16, 2008, 'MBBS, FCPS (Urology)', 30),
 ((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'Dr. Fatima Zaidi',     'Obstetrician',        'Maternity care specialist with 15 years of delivery experience.', 'fatima.zaidi@crescentclinic.pk', '+92-300-1000019', 15, 2009, 'MBBS, FCPS (Gynecology & Obstetrics)', 30),
-((SELECT id FROM clinics WHERE slug = 'al-falah-multan'),      'Dr. Omar Farooqi',     'General Physician',   'Provides walk-in consultations and minor procedures.', 'omar.farooqi@alfalah.pk',     '+92-300-1000020', 4, 2020, 'MBBS', 30);
+((SELECT id FROM clinics WHERE slug = 'al-falah-multan'),      'Dr. Omar Farooqi',     'General Physician',   'Provides walk-in consultations and minor procedures.', 'omar.farooqi@alfalah.pk',     '+92-300-1000020', 4, 2020, 'MBBS', 30)
+ON CONFLICT (clinic_id, name) WHERE NOT is_deleted DO NOTHING;
 
 -- ------------------------------------------------------------
 -- doctor_availability (70) — recurring weekly rule per doctor.
@@ -162,7 +163,33 @@ FROM (VALUES
   ('Dr. Omar Farooqi', 3, '09:00'::time, '13:00'::time, NULL, NULL, 30),
   ('Dr. Omar Farooqi', 5, '09:00'::time, '13:00'::time, NULL, NULL, 30)
 ) AS v(doctor_name, day_of_week, start_time, end_time, break_start_time, break_end_time, slot_duration_minutes)
-JOIN doctors d ON d.name = v.doctor_name;
+JOIN doctors d ON d.name = v.doctor_name
+ON CONFLICT (doctor_id, day_of_week, start_time, end_time) WHERE NOT is_deleted DO NOTHING;
+
+-- ------------------------------------------------------------
+-- demo login accounts -- so the doctor portal (and admin auth, once it's
+-- gated) have a real, working credential out of the box instead of
+-- requiring a manual POST /auth/register first.
+--
+-- Demo admin login:  admin@alshifa.pk   / password: admin123
+-- Demo doctor login: ayesha.khan@alshifa.pk / password: doctor123
+--   (Dr. Ayesha Khan, Al-Shifa General Clinic -- try /doctor/login)
+-- ------------------------------------------------------------
+INSERT INTO users (name, email, password_hash, role, clinic_id, doctor_id)
+SELECT 'Clinic Admin', 'admin@alshifa.pk',
+       '$2b$12$L0kJOit8Y4rP8XtiPRIc8ONSHvGDJasb7RpJVXoqH3FINwMiI0.iK',
+       'admin', c.id, NULL
+FROM clinics c WHERE c.slug = 'al-shifa-general'
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (name, email, password_hash, role, clinic_id, doctor_id)
+SELECT 'Dr. Ayesha Khan', 'ayesha.khan@alshifa.pk',
+       '$2b$12$Qcd/EIeeBzeAB92zra9vM.YvvZdhoV9XPaTnumMpc7gSzakQVz7OK',
+       'doctor', c.id, d.id
+FROM clinics c
+JOIN doctors d ON d.clinic_id = c.id AND d.name = 'Dr. Ayesha Khan'
+WHERE c.slug = 'al-shifa-general'
+ON CONFLICT (email) DO NOTHING;
 
 -- ------------------------------------------------------------
 -- doctor_leaves (8) — a mix of full-day and partial-day exceptions
@@ -180,7 +207,7 @@ FROM (VALUES
   ('Dr. Nadeem Chaudhry', CURRENT_DATE + 9,  NULL::time, NULL::time, 'Sick leave')
 ) AS v(doctor_name, leave_date, start_time, end_time, reason)
 JOIN doctors d ON d.name = v.doctor_name
-ON CONFLICT (doctor_id, leave_date, start_time) DO NOTHING;
+ON CONFLICT (doctor_id, leave_date, (COALESCE(start_time, '00:00:00'::time))) DO NOTHING;
 
 -- ------------------------------------------------------------
 -- patients (18) — one row per real patient, scoped to their clinic.
@@ -231,7 +258,8 @@ INSERT INTO faqs (clinic_id, question_en, question_ur, answer_en, answer_ur, cat
 ((SELECT id FROM clinics WHERE slug = 'horizon-health'),       'Can I reschedule my appointment?',        'کیا میں اپنی اپوائنٹمنٹ دوبارہ شیڈول کر سکتا ہوں؟', 'Yes, message us your preferred new date and time and we will confirm availability.', 'جی ہاں، ہمیں اپنی پسندیدہ نئی تاریخ اور وقت بھیجیں، ہم دستیابی کی تصدیق کریں گے۔', 'appointments'),
 ((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'Do you have a maternity ward?',           'کیا آپ کے پاس زچگی وارڈ ہے؟',                    'Yes, Crescent Clinic operates a fully staffed 24/7 maternity ward.',             'جی ہاں، کریسنٹ کلینک میں مکمل عملے کے ساتھ 24/7 زچگی وارڈ موجود ہے۔', 'maternity'),
 ((SELECT id FROM clinics WHERE slug = 'crescent-clinic'),      'Can my partner stay during delivery?',    'کیا میرا ساتھی زچگی کے دوران ساتھ رہ سکتا ہے؟',  'Yes, one support person is welcome in the delivery room.',                        'جی ہاں، ڈیلیوری روم میں ایک ساتھی شخص کی اجازت ہے۔', 'maternity'),
-((SELECT id FROM clinics WHERE slug = 'al-falah-multan'),      'Do you have a pharmacy on site?',         'کیا آپ کے پاس موقع پر فارمیسی ہے؟',              'Yes, our in-house pharmacy is open during all clinic hours.',                    'جی ہاں، ہماری اندرونِ کلینک فارمیسی تمام اوقات میں کھلی رہتی ہے۔', 'general');
+((SELECT id FROM clinics WHERE slug = 'al-falah-multan'),      'Do you have a pharmacy on site?',         'کیا آپ کے پاس موقع پر فارمیسی ہے؟',              'Yes, our in-house pharmacy is open during all clinic hours.',                    'جی ہاں، ہماری اندرونِ کلینک فارمیسی تمام اوقات میں کھلی رہتی ہے۔', 'general')
+ON CONFLICT (clinic_id, question_en) WHERE NOT is_deleted DO NOTHING;
 
 -- ------------------------------------------------------------
 -- doctor_slots (23) — pre-generated slots. One matches each
@@ -298,7 +326,6 @@ FROM (VALUES
     ('family-health-center', 'Dr. Zara Abbasi',     '+92-308-9012345', CURRENT_DATE + 6,  '13:15'::time, 'Diet plan consultation',              'pending',   NULL,                                      'en'),
     ('marina-medical',       'Dr. Imran Hashmi',    '+92-309-0123456', CURRENT_DATE + 2,  '15:30'::time, 'Recurring migraines',                 'confirmed', NULL,                                      'en'),
     ('marina-medical',       'Dr. Rabia Siddiqui',  '+92-310-1234567', CURRENT_DATE + 7,  '11:00'::time, 'Anxiety and sleep issues',            'pending',   NULL,                                      'ur'),
-    ('green-valley-clinic',  'Dr. Nadeem Chaudhry', '+92-311-2345678', CURRENT_DATE - 3,  '09:30'::time, 'Seasonal flu symptoms',               'cancelled', 'Patient requested cancellation.',        'en'),
     ('al-noor-diagnostic',   'Dr. Sara Yousaf',     '+92-312-3456789', CURRENT_DATE + 1,  '10:15'::time, 'Chest X-ray',                         'confirmed', NULL,                                      'en'),
     ('al-noor-diagnostic',   'Dr. Ali Raza',        '+92-313-4567890', CURRENT_DATE + 8,  '16:00'::time, 'Full body lab panel',                 'pending',   NULL,                                      'en'),
     ('riverside-medical',    'Dr. Mehwish Aslam',   '+92-314-5678901', CURRENT_DATE + 3,  '09:00'::time, 'Infant vaccination',                  'confirmed', NULL,                                      'ur'),
@@ -311,7 +338,25 @@ FROM (VALUES
 JOIN clinics c ON c.slug = v.clinic_slug
 JOIN doctors d ON d.name = v.doctor_name AND d.clinic_id = c.id
 JOIN patients p ON p.phone = v.patient_phone AND p.clinic_id = c.id
-LEFT JOIN doctor_slots ds ON ds.doctor_id = d.id AND ds.slot_date = v.appointment_date AND ds.start_time = v.appointment_time;
+LEFT JOIN doctor_slots ds ON ds.doctor_id = d.id AND ds.slot_date = v.appointment_date AND ds.start_time = v.appointment_time
+ON CONFLICT (doctor_id, appointment_date, appointment_time) WHERE status != 'cancelled' AND NOT is_deleted DO NOTHING;
+
+-- The one deliberately-cancelled demo appointment is seeded separately: the
+-- partial unique index above only covers non-cancelled rows (a cancelled
+-- slot is legitimately reusable in the real app), so ON CONFLICT can't
+-- de-duplicate it the same way. Guarding with WHERE NOT EXISTS instead.
+INSERT INTO appointments (clinic_id, doctor_id, patient_id, slot_id, appointment_date, appointment_time, reason, status, status_note, language)
+SELECT c.id, d.id, p.id, NULL,
+       CURRENT_DATE - 3, '09:30'::time, 'Seasonal flu symptoms', 'cancelled', 'Patient requested cancellation.', 'en'
+FROM clinics c
+JOIN doctors d ON d.name = 'Dr. Nadeem Chaudhry' AND d.clinic_id = c.id
+JOIN patients p ON p.phone = '+92-311-2345678' AND p.clinic_id = c.id
+WHERE c.slug = 'green-valley-clinic'
+  AND NOT EXISTS (
+      SELECT 1 FROM appointments a
+      WHERE a.doctor_id = d.id AND a.appointment_date = CURRENT_DATE - 3
+        AND a.appointment_time = '09:30'::time::text AND a.status = 'cancelled'
+  );
 
 -- ------------------------------------------------------------
 -- conversations (12)

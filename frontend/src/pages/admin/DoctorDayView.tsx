@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus, CalendarDays, CalendarCheck, Clock3, RefreshCcw, LayoutList, ChevronDown } from 'lucide-react'
 import { useClinic } from '../../context/ClinicContext'
 import { useTheme } from '../../context/ThemeContext'
-import { getDoctors, getDoctorDaySchedule, type Doctor, type DoctorDaySchedule } from '../../services/api'
+import { getDoctors, getDoctorDaySchedule, getAppointments, type Doctor, type DoctorDaySchedule, type Appointment } from '../../services/api'
 import { Card, PageHeader, Spinner } from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import SearchableSelect from '../../components/ui/SearchableSelect'
@@ -38,9 +38,10 @@ export default function DoctorDayView() {
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [doctorId, setDoctorId] = useState<number | null>(searchParams.get('doctor_id') ? Number(searchParams.get('doctor_id')) : null)
   const [date, setDate] = useState<Date>(() => new Date())
-  const [viewMode, setViewMode] = useState<'day' | 'week'>('day')
+  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day')
   const [schedule, setSchedule] = useState<DoctorDaySchedule | null>(null)
   const [weekSchedules, setWeekSchedules] = useState<Record<string, DoctorDaySchedule>>({})
+  const [monthAppointments, setMonthAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [bookingTime, setBookingTime] = useState<string | null>(null)
   const [bookingDate, setBookingDate] = useState<Date>(date)
@@ -63,7 +64,7 @@ export default function DoctorDayView() {
       getDoctorDaySchedule(clinicId, doctorId, toISO(date))
         .then((r) => setSchedule(r.data))
         .finally(() => setLoading(false))
-    } else {
+    } else if (viewMode === 'week') {
       Promise.all(weekDates.map((d) => getDoctorDaySchedule(clinicId, doctorId, toISO(d))))
         .then((results) => {
           const map: Record<string, DoctorDaySchedule> = {}
@@ -72,6 +73,12 @@ export default function DoctorDayView() {
           })
           setWeekSchedules(map)
         })
+        .finally(() => setLoading(false))
+    } else {
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1)
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+      getAppointments(clinicId, { doctorId, startDate: toISO(monthStart), endDate: toISO(monthEnd), pageSize: 100 })
+        .then((r) => setMonthAppointments(r.data.items.filter((a) => a.status !== 'cancelled')))
         .finally(() => setLoading(false))
     }
   }
@@ -111,6 +118,16 @@ export default function DoctorDayView() {
     }
     return [...times].sort()
   }, [viewMode, weekDates, weekSchedules])
+
+  const monthByDay = useMemo(() => {
+    const map: Record<string, Appointment[]> = {}
+    for (const a of monthAppointments) {
+      const key = a.appointment_date
+      if (!map[key]) map[key] = []
+      map[key].push(a)
+    }
+    return map
+  }, [monthAppointments])
 
   const openBooking = (d: Date, time?: string) => {
     setBookingDate(d)
@@ -167,7 +184,11 @@ export default function DoctorDayView() {
           <div className="flex items-center gap-2">
             <button
               onClick={() =>
-                setDate((d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (viewMode === 'week' ? 7 : 1)))
+                setDate((d) =>
+                  viewMode === 'month'
+                    ? new Date(d.getFullYear(), d.getMonth() - 1, 1)
+                    : new Date(d.getFullYear(), d.getMonth(), d.getDate() - (viewMode === 'week' ? 7 : 1))
+                )
               }
               className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50"
             >
@@ -181,7 +202,11 @@ export default function DoctorDayView() {
             </button>
             <button
               onClick={() =>
-                setDate((d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + (viewMode === 'week' ? 7 : 1)))
+                setDate((d) =>
+                  viewMode === 'month'
+                    ? new Date(d.getFullYear(), d.getMonth() + 1, 1)
+                    : new Date(d.getFullYear(), d.getMonth(), d.getDate() + (viewMode === 'week' ? 7 : 1))
+                )
               }
               className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50"
             >
@@ -190,12 +215,13 @@ export default function DoctorDayView() {
             <div className="relative">
               <select
                 value={viewMode}
-                onChange={(e) => setViewMode(e.target.value as 'day' | 'week')}
+                onChange={(e) => setViewMode(e.target.value as 'day' | 'week' | 'month')}
                 className="appearance-none pl-3 pr-7 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer"
                 style={{ borderColor: colors.primary, color: colors.primary }}
               >
                 <option value="day">Day view</option>
                 <option value="week">Week view</option>
+                <option value="month">Month view</option>
               </select>
               <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.primary }} />
             </div>
@@ -261,7 +287,7 @@ export default function DoctorDayView() {
               )}
             </div>
           </div>
-        ) : (
+        ) : viewMode === 'week' ? (
           <div className="p-5">
             <p className="font-semibold text-slate-800 text-sm mb-3">Weekly Schedule</p>
             {loading ? (
@@ -339,6 +365,60 @@ export default function DoctorDayView() {
                 <p className="text-xs text-slate-400">Available</p>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="p-5">
+            <p className="font-semibold text-slate-800 text-sm mb-3">Monthly Overview</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Spinner />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+                  {DAY_LABELS.map((lbl) => (
+                    <div key={lbl} className="text-center text-[10px] font-semibold text-slate-400 py-1">
+                      {lbl}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {calendarDays.map((d, i) => {
+                    if (!d) return <div key={i} />
+                    const iso = toISO(d)
+                    const dayAppts = monthByDay[iso] ?? []
+                    const isToday = iso === toISO(new Date())
+                    return (
+                      <button
+                        key={iso}
+                        onClick={() => {
+                          setDate(d)
+                          setViewMode('day')
+                        }}
+                        className="aspect-square rounded-lg border p-1.5 text-left flex flex-col hover:border-slate-300 transition-colors"
+                        style={isToday ? { borderColor: colors.primary, borderWidth: 2 } : { borderColor: '#F1F5F9' }}
+                      >
+                        <span className="text-xs font-semibold text-slate-700">{d.getDate()}</span>
+                        {dayAppts.length > 0 && (
+                          <span
+                            className="mt-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full self-start"
+                            style={{ backgroundColor: `${colors.primary}1A`, color: colors.primary }}
+                          >
+                            {dayAppts.length} occupied
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center gap-4 mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors.primary }} /> Days with appointments
+                  </span>
+                  <span>{monthAppointments.length} total this month</span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Card>

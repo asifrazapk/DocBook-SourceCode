@@ -11,6 +11,7 @@ import {
   MessagesSquare,
   CreditCard,
   FileSpreadsheet,
+  Star,
   Settings as SettingsIcon,
   LogOut,
   ChevronsLeft,
@@ -36,8 +37,10 @@ const NAV_ITEMS = [
   { to: 'conversations', icon: MessagesSquare, label: 'Conversations' },
   { to: 'faqs', icon: HelpCircle, label: 'FAQs' },
   { to: 'clinics', icon: Building2, label: 'Clinics' },
+  { to: 'doctor-assignment', icon: Building2, label: 'Doctor Assignment' },
   { to: 'analytics', icon: BarChart3, label: 'Analytics' },
   { to: 'reports', icon: FileSpreadsheet, label: 'Reports' },
+  { to: 'waitlist-reviews', icon: Star, label: 'Waitlist & Reviews' },
   { to: 'billing', icon: CreditCard, label: 'Billing' },
   { to: 'settings', icon: SettingsIcon, label: 'App settings' },
 ]

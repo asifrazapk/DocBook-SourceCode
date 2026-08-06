@@ -11,7 +11,7 @@ falling back gracefully if two people grab the same slot at once.
 import asyncio
 import logging
 import smtplib
-from datetime import date as date_type, datetime, time as time_type
+from datetime import date as date_type, datetime, time as time_type, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
@@ -68,6 +68,57 @@ async def list_appointments_paginated(
 
 async def list_appointments_for_patient(patient_id: int) -> List[dict]:
     return await AppointmentRepo.list_by_patient(patient_id)
+
+
+async def list_appointments_for_phone(clinic_id: int, phone: str, limit: int = 10) -> List[dict]:
+    """Patient-facing lookup for 'is my appointment confirmed/cancelled?' --
+    phone-verified (the phone the patient logged into chat with), same
+    pattern as the prescription lookup. Most recent/upcoming first."""
+    from app.repo.patient_repo import PatientRepo
+
+    patient = await PatientRepo.find_by_phone(clinic_id, phone)
+    if not patient:
+        return []
+    appts = await AppointmentRepo.list_by_patient(patient["id"])
+    enriched = await _enrich_with_names(appts, clinic_id)
+    enriched.sort(key=lambda a: (a["appointment_date"], a["appointment_time"]), reverse=True)
+    return enriched[:limit]
+
+
+class NotOwnerError(Exception):
+    """Raised when a phone-verified action is attempted against an
+    appointment that doesn't belong to that phone number."""
+
+
+async def _verify_patient_owns_appointment(appt_id: int, clinic_id: int, phone: str) -> dict:
+    appt = await get_appointment(appt_id)
+    if not appt or appt.get("clinic_id") != clinic_id:
+        raise ValueError("Appointment not found")
+    if (appt.get("patient_phone") or "") != phone:
+        raise NotOwnerError("This appointment doesn't belong to that phone number.")
+    return appt
+
+
+async def reschedule_appointment_as_patient(
+    appt_id: int, clinic_id: int, phone: str, new_date: Optional[date_type], new_time: Optional[str]
+) -> dict:
+    """Phone-verified reschedule for the patient-facing My Appointments page
+    -- same underlying logic as the admin's reschedule, but only allowed if
+    the calling phone actually matches the appointment's patient."""
+    await _verify_patient_owns_appointment(appt_id, clinic_id, phone)
+    updated = await reschedule_appointment(appt_id, new_date=new_date, new_time=new_time, note="Rescheduled by patient")
+    if not updated:
+        raise ValueError("Appointment not found")
+    return updated
+
+
+async def cancel_appointment_as_patient(appt_id: int, clinic_id: int, phone: str) -> dict:
+    """Phone-verified cancel for the patient-facing My Appointments page."""
+    await _verify_patient_owns_appointment(appt_id, clinic_id, phone)
+    updated = await cancel_appointment(appt_id, note="Cancelled by patient")
+    if not updated:
+        raise ValueError("Appointment not found")
+    return updated
 
 
 async def _enrich_with_names(appts: List[dict], clinic_id: int) -> List[dict]:
@@ -231,7 +282,11 @@ async def _book_single_time(
         "patient_id": patient["id"],
         "slot_id": slot_id,
         "appointment_date": appointment_date,
-        "appointment_time": str(appointment_time),
+        # Always store as a canonical HH:MM:SS string -- callers may pass
+        # "11:00", "11:00:00", or a real time object, and the unique
+        # double-booking constraint below is a pure string comparison, so an
+        # inconsistent format would silently let two "same" times coexist.
+        "appointment_time": str(_parse_time(appointment_time)),
         "reason": reason,
         "language": language,
     }
@@ -326,6 +381,16 @@ async def update_appointment(appt_id: int, data: Dict[str, Any], note: Optional[
         payload["status_note"] = note
 
     existing = await get_appointment(appt_id)
+    if not existing:
+        return None
+
+    if payload.get("is_telemedicine") and not existing.get("video_room_key"):
+        # Jitsi Meet needs no API key/account -- any unique room name works,
+        # and meet.jit.si/<key> is immediately a real, working video room.
+        import uuid
+
+        payload["video_room_key"] = f"medibot-{existing['clinic_id']}-{appt_id}-{uuid.uuid4().hex[:8]}"
+
     try:
         updated = await AppointmentRepo.update(appt_id, payload)
     except ValueError:
@@ -333,7 +398,7 @@ async def update_appointment(appt_id: int, data: Dict[str, Any], note: Optional[
 
     # Notify patient + doctor only on the actual pending -> confirmed
     # transition, not on every subsequent edit (e.g. adding a note later).
-    if updated and payload.get("status") == "confirmed" and existing and existing.get("status") != "confirmed":
+    if updated and payload.get("status") == "confirmed" and existing.get("status") != "confirmed":
         await _notify_confirmation(updated)
 
     return updated
@@ -343,18 +408,20 @@ async def reschedule_appointment(
     appt_id: int,
     new_date: Optional[date_type] = None,
     new_time: Optional[str] = None,
+    new_doctor_id: Optional[int] = None,
     note: Optional[str] = None,
 ) -> Optional[dict]:
-    """Move an appointment to a new date/time, releasing its old slot (if
-    any) and claiming a new one (if one has been pre-generated for the new
-    date/time)."""
+    """Move an appointment to a new date/time and/or a different doctor,
+    releasing its old slot (if any) and claiming a new one (if one has been
+    pre-generated for the new doctor/date/time)."""
     existing = await get_appointment(appt_id)
     if not existing:
         return None
 
     appointment_date = new_date or existing["appointment_date"]
     appointment_time = new_time or existing["appointment_time"]
-    doctor_id = existing.get("doctor_id")
+    doctor_id = new_doctor_id if new_doctor_id is not None else existing.get("doctor_id")
+    time_changed = appointment_date != existing["appointment_date"] or _parse_time(appointment_time) != _parse_time(existing["appointment_time"])
 
     new_slot_id = None
     if doctor_id:
@@ -368,9 +435,10 @@ async def reschedule_appointment(
             new_slot_id = claimed["id"]
 
     update_data = {
-        "status": "rescheduled",
+        "status": "rescheduled" if time_changed else existing["status"],
         "appointment_date": appointment_date,
-        "appointment_time": str(appointment_time),
+        "appointment_time": str(_parse_time(appointment_time)),
+        "doctor_id": doctor_id,
         "slot_id": new_slot_id,
     }
     if note is not None:
@@ -410,6 +478,14 @@ async def cancel_appointment(appt_id: int, note: Optional[str] = None) -> Option
 
     if existing.get("slot_id"):
         await DoctorSlotRepo.release(existing["slot_id"])
+
+    if existing.get("doctor_id"):
+        from app.services.waitlist_service import notify_waitlist_for_opening
+
+        try:
+            await notify_waitlist_for_opening(existing["clinic_id"], existing["doctor_id"], existing["appointment_date"])
+        except Exception:
+            logger.exception("Waitlist notification failed after cancellation")
 
     return updated
 
@@ -460,3 +536,59 @@ def _send_confirmation_email_sync(appt: dict, patient: dict, email_cfg: Dict[str
             server.sendmail(email_cfg["mail_from"], patient["email"], msg.as_string())
     except Exception:
         logger.exception(f"Failed to send booking confirmation email to {patient.get('email')}")
+
+
+async def send_due_reminders(clinic_id: int) -> Dict[str, Any]:
+    """Emails patients (and the doctor, if telemedicine) whose confirmed
+    appointment is happening ~24h from now and hasn't been reminded yet.
+
+    This function does the actual sending -- something still needs to CALL
+    it on a schedule (a cron job, or a serverless scheduled trigger hitting
+    POST /appointments/send-reminders) for reminders to go out automatically.
+    There's no built-in scheduler in this app; that's an infra decision for
+    wherever this gets deployed (e.g. a `cron` entry, GitHub Actions on a
+    schedule, or APScheduler if this runs as a long-lived process).
+    """
+    from app.repo.patient_repo import PatientRepo
+    from app.repo.doctor_repo import DoctorRepo
+    from app.services.settings_service import get_message_templates, render_template
+
+    target_date = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+    candidates = await AppointmentRepo.list_by_clinic(clinic_id, status="confirmed")
+    due = [a for a in candidates if a["appointment_date"] == target_date and not a.get("reminder_sent_at")]
+
+    if not due:
+        return {"checked": len(candidates), "sent": 0}
+
+    templates = await get_message_templates(clinic_id)
+    clinic = await ClinicRepo.get_by_id(clinic_id)
+    sent = 0
+
+    for appt in due:
+        try:
+            patient = await PatientRepo.get_by_id(appt["patient_id"])
+        except ValueError:
+            patient = None
+        doctor = None
+        if appt.get("doctor_id"):
+            try:
+                doctor = await DoctorRepo.get_by_id(appt["doctor_id"])
+            except ValueError:
+                doctor = None
+
+        if patient and patient.get("email"):
+            variables = {
+                "patient_name": patient.get("name") or "",
+                "doctor_name": doctor.get("name") if doctor else "the clinic",
+                "clinic_name": clinic.get("name") if clinic else "",
+                "appointment_date": str(appt.get("appointment_date")),
+                "appointment_time": str(appt.get("appointment_time"))[:5],
+                "reason": appt.get("reason") or "N/A",
+            }
+            body = "Reminder: " + render_template(templates["patient_confirmation"], **variables)
+            await _send_templated_email(clinic_id, patient["email"], "Appointment Reminder — Tomorrow", body)
+            sent += 1
+
+        await AppointmentRepo.update(appt["id"], {"reminder_sent_at": datetime.now(timezone.utc)})
+
+    return {"checked": len(candidates), "sent": sent}

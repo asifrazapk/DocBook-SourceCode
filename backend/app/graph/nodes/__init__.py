@@ -20,6 +20,7 @@ from app.graph.nodes.clinic_info import clinic_info_node
 from app.graph.nodes.cancel import cancel_node
 from app.graph.nodes.reschedule import reschedule_node
 from app.graph.nodes.medical_record import medical_record_node
+from app.graph.nodes.my_appointments import my_appointments_node
 from app.graph.nodes.save_memory import save_memory_node
 from app.graph.nodes.response import response_node
 
@@ -40,6 +41,7 @@ __all__ = [
     "cancel_node",
     "reschedule_node",
     "medical_record_node",
+    "my_appointments_node",
     "save_memory_node",
     "response_node",
 ]

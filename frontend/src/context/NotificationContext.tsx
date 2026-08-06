@@ -1,10 +1,21 @@
-import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export interface AppNotification {
   id: string
   message: string
   timestamp: number
   read: boolean
+}
+
+const STORAGE_KEY = 'medibot_notifications'
+
+function loadStored(): AppNotification[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
 }
 
 interface NotificationCtx {
@@ -30,10 +41,14 @@ export function useNotifications() {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [notifications, setNotifications] = useState<AppNotification[]>(loadStored)
   // Ref (not state) so add() always reads the latest value without needing
   // to be re-created every time the setting changes.
   const enabledRef = useRef(true)
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications))
+  }, [notifications])
 
   const add = (message: string) => {
     if (!enabledRef.current) return

@@ -33,6 +33,7 @@ class DoctorUpdate(BaseModel):
     education: str | None = None
     default_slot_duration_minutes: int | None = None
     is_active: bool | None = None
+    clinic_id: int | None = None  # reassign this doctor to a different clinic
 
 
 class WeeklyAvailabilityEntry(BaseModel):
@@ -62,6 +63,13 @@ async def list_doctors(clinic_id: int, q: str | None = None, page: int = 1, page
 async def doctors_with_today_count(clinic_id: int):
     """Which doctors have appointments today, at a glance."""
     return await doctor_service.list_doctors_with_today_count(clinic_id)
+
+
+@router.get("/all-clinics")
+async def list_all_doctors_with_clinic():
+    """Every doctor across every clinic -- backs the admin's cross-clinic
+    doctor-assignment view."""
+    return await doctor_service.list_all_doctors_with_clinic()
 
 
 @router.get("/{doctor_id}")
@@ -97,7 +105,10 @@ async def create_doctor_with_availability(body: DoctorCreateWithAvailability):
 
 @router.patch("/{doctor_id}")
 async def update_doctor(doctor_id: int, body: DoctorUpdate):
-    doctor = await doctor_service.update_doctor(doctor_id, body.model_dump(exclude_none=True))
+    try:
+        doctor = await doctor_service.update_doctor(doctor_id, body.model_dump(exclude_none=True))
+    except doctor_service.DoctorHasUpcomingAppointmentsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
     return doctor

@@ -12,6 +12,22 @@ class DoctorRepo(BasePostgresModel):
         return await cls.list(filter_dict={"clinic_id": clinic_id})
 
     @classmethod
+    async def list_all_with_clinic(cls) -> list[dict]:
+        """Every doctor across every clinic, with the clinic name joined in
+        -- backs the admin's cross-clinic doctor-assignment view."""
+        async with get_read_pool().acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT d.*, c.name AS clinic_name, c.slug AS clinic_slug
+                FROM doctors d
+                JOIN clinics c ON c.id = d.clinic_id
+                WHERE (d.is_deleted = false OR d.is_deleted IS NULL)
+                ORDER BY c.name, d.name
+                """
+            )
+            return [dict(r) for r in rows]
+
+    @classmethod
     async def list_paginated_by_clinic(cls, clinic_id: int, q: Optional[str] = None, page: int = 1, page_size: int = 10):
         if not q:
             return await cls.list_paginated(

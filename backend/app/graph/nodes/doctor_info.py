@@ -40,6 +40,7 @@ def _format_schedule(rows: list[dict]) -> list[dict]:
 async def doctor_info_node(state: ChatState) -> dict:
     matched = state.get("matched_doctor")
     doctors = state.get("doctors", [])
+    requested_name = (state.get("slots", {}).get("doctor_name") or "").strip()
 
     matched_payload = None
     if matched:
@@ -56,5 +57,12 @@ async def doctor_info_node(state: ChatState) -> dict:
         # next steps.
         "doctors": [] if matched else [_slim(d) for d in doctors],
         "count": len(doctors),
+        # Set only when the patient named a SPECIFIC doctor and no one by
+        # that name was found at this clinic -- distinct from a generic
+        # "who are your doctors" browsing question, where no name was given
+        # in the first place. Lets the response composer say plainly that
+        # doctor isn't here (instead of silently listing the roster as if
+        # nothing was wrong) and suggest real alternatives from `doctors`.
+        "requested_doctor_not_found": requested_name if (requested_name and not matched) else None,
     }
     return {"response_payload": payload}

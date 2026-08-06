@@ -32,6 +32,7 @@ def route_by_intent(state: ChatState) -> str:
         Intent.CANCEL: "cancel",
         Intent.RESCHEDULE: "reschedule",
         Intent.MEDICAL_RECORD: "medical_record",
+        Intent.MY_APPOINTMENTS: "my_appointments",
     }
     # greeting / emergency / other / invalid -> straight to memory+response
     return mapping.get(intent, "save_memory")

@@ -9,7 +9,25 @@ from fastapi.responses import JSONResponse
 
 from app.core.logging import configure_logging
 from app.repo.sql_connector import init_db_pools, close_db_pools
-from app.routes import chat, clinics, doctors, faqs, appointments, patients, schedule, analytics, settings, conversations, medical_records, bills
+from app.routes import (
+    chat,
+    clinics,
+    doctors,
+    faqs,
+    appointments,
+    patients,
+    schedule,
+    analytics,
+    settings,
+    conversations,
+    medical_records,
+    bills,
+    auth,
+    doctor_portal,
+    waitlist,
+    reviews,
+    voice,
+)
 
 configure_logging()
 logger = logging.getLogger("medibot")
@@ -75,6 +93,11 @@ app.include_router(settings.router)
 app.include_router(conversations.router)
 app.include_router(medical_records.router)
 app.include_router(bills.router)
+app.include_router(auth.router)
+app.include_router(doctor_portal.router)
+app.include_router(waitlist.router)
+app.include_router(reviews.router)
+app.include_router(voice.router)
 
 
 @app.get("/health")

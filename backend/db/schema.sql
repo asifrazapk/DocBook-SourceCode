@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS users (
     id                  SERIAL PRIMARY KEY,
     name                VARCHAR NOT NULL,
     email               VARCHAR UNIQUE,
+    password_hash       VARCHAR,             -- bcrypt hash; null for the legacy placeholder row
+    role                VARCHAR NOT NULL DEFAULT 'admin',  -- 'admin' | 'doctor' | 'staff'
     is_active           BOOLEAN NOT NULL DEFAULT true,
     is_deleted          BOOLEAN NOT NULL DEFAULT false,
     local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -107,6 +109,15 @@ CREATE TABLE IF NOT EXISTS doctors (
 
 CREATE INDEX IF NOT EXISTS ix_doctors_clinic_id ON doctors (clinic_id);
 CREATE INDEX IF NOT EXISTS ix_doctors_is_active ON doctors (is_active);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_doctors_clinic_name ON doctors (clinic_id, name) WHERE NOT is_deleted;
+
+-- Added here (not in the original users CREATE TABLE above) because both
+-- referenced tables need to exist first -- clinics and users otherwise
+-- reference each other in a circular way at creation time.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS clinic_id INTEGER REFERENCES clinics (id) ON DELETE CASCADE;  -- null = access to every clinic (super-admin)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS doctor_id INTEGER REFERENCES doctors (id) ON DELETE SET NULL;  -- set when role='doctor' -- which doctor record this login is for
+CREATE INDEX IF NOT EXISTS ix_users_clinic_id ON users (clinic_id);
+CREATE INDEX IF NOT EXISTS ix_users_doctor_id ON users (doctor_id);
 
 -- ------------------------------------------------------------
 -- doctor_availability
@@ -149,6 +160,9 @@ CREATE TABLE IF NOT EXISTS doctor_availability (
 );
 
 CREATE INDEX IF NOT EXISTS ix_doctor_availability_doctor_id ON doctor_availability (doctor_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_doctor_availability_no_dupe
+    ON doctor_availability (doctor_id, day_of_week, start_time, end_time)
+    WHERE NOT is_deleted;
 CREATE INDEX IF NOT EXISTS ix_doctor_availability_day ON doctor_availability (doctor_id, day_of_week);
 CREATE INDEX IF NOT EXISTS ix_doctor_availability_is_active ON doctor_availability (is_active);
 
@@ -174,11 +188,16 @@ CREATE TABLE IF NOT EXISTS doctor_leaves (
     server_updated_at   TIMESTAMPTZ,
     CONSTRAINT chk_doctor_leaves_time_range CHECK (
         (start_time IS NULL AND end_time IS NULL) OR (end_time > start_time)
-    ),
-    UNIQUE (doctor_id, leave_date, start_time)
+    )
 );
 
 CREATE INDEX IF NOT EXISTS ix_doctor_leaves_doctor_date ON doctor_leaves (doctor_id, leave_date);
+-- Plain UNIQUE(doctor_id, leave_date, start_time) doesn't actually dedupe
+-- full-day leaves: start_time is NULL for those, and SQL never considers
+-- NULL equal to NULL, so two identical full-day-off rows wouldn't conflict.
+-- Coalescing to a sentinel time makes NULL comparable to itself.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_doctor_leaves_no_dupe
+    ON doctor_leaves (doctor_id, leave_date, (COALESCE(start_time, '00:00:00'::time)));
 
 -- ------------------------------------------------------------
 -- doctor_slots
@@ -266,6 +285,7 @@ CREATE TABLE IF NOT EXISTS faqs (
 );
 
 CREATE INDEX IF NOT EXISTS ix_faqs_clinic_id ON faqs (clinic_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_faqs_clinic_question ON faqs (clinic_id, question_en) WHERE NOT is_deleted;
 
 -- ------------------------------------------------------------
 -- appointments
@@ -290,6 +310,9 @@ CREATE TABLE IF NOT EXISTS appointments (
     status                  VARCHAR NOT NULL DEFAULT 'pending',
     status_note              VARCHAR,        -- comment/reason captured on the most recent status change (confirm/cancel/reschedule/complete)
     language                VARCHAR NOT NULL DEFAULT 'en',
+    is_telemedicine         BOOLEAN NOT NULL DEFAULT false,
+    video_room_key          VARCHAR,        -- Jitsi Meet room slug for this visit, set when is_telemedicine
+    reminder_sent_at        TIMESTAMPTZ,    -- when the 24h-ahead reminder was sent (null = not sent yet)
     is_active               BOOLEAN NOT NULL DEFAULT true,
     is_deleted              BOOLEAN NOT NULL DEFAULT false,
     local_created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -305,6 +328,52 @@ CREATE INDEX IF NOT EXISTS ix_appointments_is_active ON appointments (is_active)
 CREATE UNIQUE INDEX IF NOT EXISTS ux_appointments_doctor_slot
     ON appointments (doctor_id, appointment_date, appointment_time)
     WHERE status != 'cancelled' AND NOT is_deleted;
+
+-- ------------------------------------------------------------
+-- waitlist -- patient wants a specific doctor/date that's fully booked;
+-- notified automatically if a slot on that date opens up (a cancellation).
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS waitlist (
+    id                  SERIAL PRIMARY KEY,
+    user_id             INTEGER REFERENCES users (id),
+    clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
+    doctor_id           INTEGER NOT NULL REFERENCES doctors (id) ON DELETE CASCADE,
+    patient_id          INTEGER NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
+    desired_date        DATE NOT NULL,
+    status              VARCHAR NOT NULL DEFAULT 'waiting',  -- 'waiting' | 'notified' | 'booked' | 'expired'
+    notified_at         TIMESTAMPTZ,
+    is_deleted          BOOLEAN NOT NULL DEFAULT false,
+    local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    local_updated_at    TIMESTAMP,
+    server_created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    server_updated_at   TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_waitlist_clinic_doctor_date ON waitlist (clinic_id, doctor_id, desired_date);
+
+-- ------------------------------------------------------------
+-- reviews -- patient feedback after a completed visit; is_public controls
+-- whether it shows on the clinic's public review page.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS reviews (
+    id                  SERIAL PRIMARY KEY,
+    user_id             INTEGER REFERENCES users (id),
+    clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
+    appointment_id      INTEGER NOT NULL REFERENCES appointments (id) ON DELETE CASCADE,
+    patient_id          INTEGER NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
+    doctor_id           INTEGER REFERENCES doctors (id) ON DELETE SET NULL,
+    rating              INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment             VARCHAR,
+    is_public           BOOLEAN NOT NULL DEFAULT true,
+    is_deleted          BOOLEAN NOT NULL DEFAULT false,
+    local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    local_updated_at    TIMESTAMP,
+    server_created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    server_updated_at   TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_reviews_clinic_id ON reviews (clinic_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_reviews_appointment ON reviews (appointment_id);
 
 -- ------------------------------------------------------------
 -- medical_records (prescription + report per appointment)

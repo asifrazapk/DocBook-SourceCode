@@ -23,6 +23,12 @@ _INTENT_GUIDE = """\
 - view_prescription: patient wants to see/retrieve their prescription, report,
   or medical record from a past visit (e.g. "show my prescription", "what did
   the doctor prescribe last time", "get my report for appointment 20")
+- check_appointment_status: patient asking whether THEIR OWN appointment is
+  confirmed, pending, cancelled, completed, or rescheduled (e.g. "is my
+  appointment confirmed?", "did my appointment get cancelled?", "what's the
+  status of my booking", "show me my appointments") -- this is about
+  checking an existing booking's status, not booking/cancelling/rescheduling
+  a new one
 - greeting: hello / thanks / small talk with no request
 - emergency: medical emergency or urgent danger to life
 - other: anything that fits none of the above\

@@ -40,6 +40,11 @@ that went wrong when this was hardcoded, so follow them closely:
 - If a requested day/doctor genuinely isn't bookable (day off, fully booked,
   on leave, invalid date), offer something like "Try another date" / "View
   other doctors" rather than a dead-end menu.
+- If the message just listed the patient's own appointments (checking
+  status), offer relevant next steps like "Reschedule" / "Cancel" only if
+  there's exactly one upcoming pending/confirmed appointment to act on;
+  otherwise keep it to a short general menu -- don't imply an action on an
+  already-cancelled or completed visit.
 - If nothing above applies and the conversation is genuinely open-ended
   (e.g. a greeting, a general FAQ answer), a short general menu like "Book
   appointment" / "View doctors" / "Clinic info" is fine.
@@ -88,6 +93,13 @@ Reply rules:
   a markdown bullet list rather than folding them into prose -- they're easier to
   scan and, for slots, easier to tap/select on mobile.
 - If "doctors" is present: list each doctor as "- Name — Specialty" (one per line).
+- If "requested_doctor_not_found" is present (a non-null name): the patient
+  asked for that specific doctor by name and no one by that name is at this
+  clinic. Say so plainly and directly (don't just silently list the roster
+  as if nothing was asked) -- e.g. "We don't have a Dr. X here, but our
+  doctors are:" -- then list the real doctors from "doctors" so the patient
+  can pick a real one. Never imply the requested doctor exists or might be
+  available elsewhere.
 - If "open_slots" is present and non-empty: list each time as its own bullet
   (e.g. "- 9:00 AM", "- 9:30 AM"), then ask which one they'd like. If "open_slots"
   is present but empty, say plainly that there's nothing open and suggest
@@ -104,6 +116,13 @@ Reply rules:
   labelled (e.g. "**Diagnosis:**", "**Prescription:**") -- these are the
   patient's own medical details, present them completely and exactly as
   given, never summarised or trimmed.
+- If "appointments" is present (checking booking status): if the list is
+  empty and "not_logged_in" is true, explain you need their verified phone.
+  If empty otherwise, say plainly you couldn't find any appointments on file
+  for them. If non-empty, list each one clearly with its date, time, doctor,
+  and status (pending/confirmed/cancelled/completed/rescheduled) -- if
+  status_note is present (e.g. a cancellation reason), include it briefly.
+  Most recent/soonest first is already the given order; don't reorder.
 - No markdown headings.
 
 {QUICK_REPLY_RULES}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, RefreshCw, Search, CalendarClock, LayoutGrid, CalendarX2 } from 'lucide-react'
+import { Plus, RefreshCw, Search, CalendarClock, LayoutGrid, CalendarX2, Video } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useClinic } from '../../context/ClinicContext'
 import {
@@ -8,13 +8,16 @@ import {
   rescheduleAppointment,
   cancelAppointment,
   getDoctorDaySchedule,
+  getDoctors,
+  updatePatient,
   type Appointment,
+  type Doctor,
 } from '../../services/api'
 import { Card, PageHeader, EmptyState, Spinner } from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Pagination from '../../components/ui/Pagination'
-import { Field, Input, Textarea } from '../../components/ui/Field'
+import { Field, Input, Textarea, Select } from '../../components/ui/Field'
 import { useToast } from '../../components/ui/Toast'
 import { statusStyle } from '../../theme'
 import { useTheme } from '../../context/ThemeContext'
@@ -78,6 +81,21 @@ export default function AppointmentsPage() {
   }
 
   useEffect(load, [clinicId, statusFilter, startDate, endDate, search, page, pageSize])
+
+  const startVideoCall = async (appt: Appointment) => {
+    if (appt.video_room_key) {
+      window.open(`https://meet.jit.si/${appt.video_room_key}`, '_blank')
+      return
+    }
+    try {
+      const res = await updateAppointment(appt.id, { is_telemedicine: true })
+      toast.show('Video room created.')
+      if (res.data.video_room_key) window.open(`https://meet.jit.si/${res.data.video_room_key}`, '_blank')
+      load()
+    } catch {
+      toast.show('Could not create the video room.', 'error')
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -187,10 +205,16 @@ export default function AppointmentsPage() {
                           {a.status !== 'cancelled' && a.status !== 'completed' && (
                             <>
                               <button
+                                onClick={() => startVideoCall(a)}
+                                className="flex items-center gap-1 text-xs font-semibold text-violet-600 hover:bg-violet-50 px-2 py-1 rounded"
+                              >
+                                <Video size={12} /> Video
+                              </button>
+                              <button
                                 onClick={() => setRescheduling(a)}
                                 className="text-xs font-semibold text-sky-600 hover:bg-sky-50 px-2 py-1 rounded"
                               >
-                                Reschedule
+                                Edit
                               </button>
                               <button
                                 onClick={() => setCancelling(a)}
@@ -379,6 +403,9 @@ function RescheduleModal({
   const toast = useToast()
   const { colors } = useTheme()
   const [date, setDate] = useState(appt.appointment_date)
+  const [doctorId, setDoctorId] = useState(appt.doctor_id)
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [patientName, setPatientName] = useState(appt.patient_name ?? '')
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [slots, setSlots] = useState<{ time: string; available: boolean; label?: string }[] | null>(null)
@@ -387,20 +414,24 @@ function RescheduleModal({
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!appt.doctor_id || !appt.clinic_id) {
+    getDoctors(appt.clinic_id).then((r) => setDoctors(r.data.items))
+  }, [appt.clinic_id])
+
+  useEffect(() => {
+    if (!doctorId || !appt.clinic_id) {
       setSlots(null)
       return
     }
     setSlotsLoading(true)
     setSelectedTime(null)
-    getDoctorDaySchedule(appt.clinic_id, appt.doctor_id, date)
+    getDoctorDaySchedule(appt.clinic_id, doctorId, date)
       .then((r) => {
         const available = r.data.available_slots.map((s) => ({ time: s.start_time, available: true }))
         // The appointment's own current slot won't show as "available" (it's
         // occupied by itself) -- add it back in as selectable so rescheduling
         // to the same date/time is still possible.
         const ownTime = appt.appointment_time.slice(0, 5)
-        if (date === appt.appointment_date && !available.some((s) => s.time === ownTime)) {
+        if (date === appt.appointment_date && doctorId === appt.doctor_id && !available.some((s) => s.time === ownTime)) {
           available.push({ time: ownTime, available: true })
         }
         const occupied = r.data.appointments
@@ -409,7 +440,7 @@ function RescheduleModal({
         setSlots([...available, ...occupied].sort((a, b) => a.time.localeCompare(b.time)))
       })
       .finally(() => setSlotsLoading(false))
-  }, [appt, date])
+  }, [appt, date, doctorId])
 
   const submit = async () => {
     if (!selectedTime) {
@@ -419,15 +450,23 @@ function RescheduleModal({
     setSubmitting(true)
     setError('')
     try {
-      await rescheduleAppointment(appt.id, { appointment_date: date, appointment_time: selectedTime, note: note || undefined })
+      await rescheduleAppointment(appt.id, {
+        appointment_date: date,
+        appointment_time: selectedTime,
+        doctor_id: doctorId !== appt.doctor_id ? doctorId ?? undefined : undefined,
+        note: note || undefined,
+      })
+      if (patientName.trim() && patientName !== appt.patient_name) {
+        await updatePatient(appt.patient_id, { name: patientName.trim() })
+      }
       onDone()
     } catch (err: any) {
       if (err?.response?.status === 409) {
         setError('That new time is already booked. Please choose another.')
       } else {
-        setError('Could not reschedule this appointment.')
+        setError('Could not save these changes.')
       }
-      toast.show('Reschedule failed.', 'error')
+      toast.show('Save failed.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -436,17 +475,28 @@ function RescheduleModal({
   return (
     <Modal
       open
-      title={`Reschedule #${appt.id}`}
+      title={`Edit appointment #${appt.id}`}
       onClose={onClose}
       width="md"
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" icon={<CalendarX2 size={14} />} onClick={submit} loading={submitting}>Save new time</Button>
+          <Button size="sm" icon={<CalendarX2 size={14} />} onClick={submit} loading={submitting}>Save changes</Button>
         </>
       }
     >
       <div className="space-y-3">
+        <Field label="Patient name">
+          <Input value={patientName} onChange={(e) => setPatientName(e.target.value)} />
+        </Field>
+        <Field label="Doctor">
+          <Select value={doctorId ?? ''} onChange={(e) => setDoctorId(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">Unassigned</option>
+            {doctors.map((d) => (
+              <option key={d.id} value={d.id}>{d.name} — {d.specialty}</option>
+            ))}
+          </Select>
+        </Field>
         {error && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{error}</p>}
         <Field label="New date">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -456,7 +506,7 @@ function RescheduleModal({
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-semibold text-slate-600">Time slot</span>
           </div>
-          {!appt.doctor_id ? (
+          {!doctorId ? (
             <p className="text-xs text-slate-400 py-3">No doctor assigned — enter a time manually below.</p>
           ) : slotsLoading ? (
             <div className="flex items-center justify-center py-6">
@@ -497,7 +547,7 @@ function RescheduleModal({
               </div>
             </>
           )}
-          {!appt.doctor_id && (
+          {!doctorId && (
             <Input type="time" value={selectedTime ?? ''} onChange={(e) => setSelectedTime(e.target.value)} className="mt-2" />
           )}
         </div>

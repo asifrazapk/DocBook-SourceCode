@@ -20,13 +20,20 @@ async def availability_node(state: ChatState) -> dict:
     slots = state.get("slots", {})
     req_date = slots.get("appointment_date")
     req_time = slots.get("appointment_time")
+    requested_name = (slots.get("doctor_name") or "").strip()
 
     if not doctor:
         return {
             "availability": {"available": False, "reason": "no_doctor"},
             "response_payload": {
                 "intent": "check_availability",
-                "note": "No specific doctor was matched -- ask which doctor or specialty they mean.",
+                "note": (
+                    f"The patient asked about a doctor named '{requested_name}', but no one by "
+                    "that name is at this clinic -- say so plainly and suggest doctors from the "
+                    "list below instead of silently ignoring the name they gave."
+                    if requested_name
+                    else "No specific doctor was matched -- ask which doctor or specialty they mean."
+                ),
                 "doctors": [{"name": d.get("name"), "specialty": d.get("specialty")} for d in state.get("doctors", [])],
             },
         }

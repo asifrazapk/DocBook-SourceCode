@@ -10,6 +10,12 @@ async def list_doctors(clinic_id: int) -> List[dict]:
     return await DoctorRepo.list_by_clinic(clinic_id)
 
 
+async def list_all_doctors_with_clinic() -> List[dict]:
+    """Every doctor across every clinic -- backs the admin's cross-clinic
+    doctor-assignment view."""
+    return await DoctorRepo.list_all_with_clinic()
+
+
 async def list_doctors_with_today_count(clinic_id: int) -> List[dict]:
     """Doctors list enriched with appointments_today -- answers 'which
     doctor has appointments today' at a glance without opening each one."""
@@ -84,7 +90,29 @@ async def create_doctor_with_availability(
     return doctor
 
 
+class DoctorHasUpcomingAppointmentsError(Exception):
+    """Raised when trying to reassign a doctor to a different clinic while
+    they still have upcoming (non-cancelled, future-dated) appointments --
+    moving them would strand those bookings under the wrong clinic."""
+
+
 async def update_doctor(doctor_id: int, data: Dict[str, Any]) -> Optional[dict]:
+    if "clinic_id" in data:
+        existing = await DoctorRepo.get_by_id(doctor_id)
+        if existing and existing["clinic_id"] != data["clinic_id"]:
+            upcoming = await AppointmentRepo.list(
+                filter_dict={"doctor_id": doctor_id},
+                order_by="appointment_date",
+            )
+            today = date.today()
+            has_upcoming = any(
+                a["appointment_date"] >= today and a["status"] not in ("cancelled", "completed") for a in upcoming
+            )
+            if has_upcoming:
+                raise DoctorHasUpcomingAppointmentsError(
+                    "This doctor has upcoming appointments at their current clinic. "
+                    "Reschedule or cancel those first, then reassign."
+                )
     try:
         return await DoctorRepo.update(doctor_id, data)
     except ValueError:

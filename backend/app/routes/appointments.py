@@ -33,11 +33,13 @@ class AppointmentCreate(BaseModel):
 class AppointmentUpdate(BaseModel):
     status: str | None = None
     note: str | None = None  # captured whenever the status changes (confirm/cancel/complete)
+    is_telemedicine: bool | None = None  # enabling this auto-generates a video_room_key if none exists
 
 
 class AppointmentReschedule(BaseModel):
     appointment_date: date | None = None
     appointment_time: time | None = None
+    doctor_id: int | None = None  # change which doctor the appointment is with
     note: str | None = None
 
 
@@ -69,6 +71,61 @@ async def list_appointments(
     )
 
 
+@router.get("/mine")
+async def my_appointments(clinic_id: int, phone: str):
+    """Patient-facing lookup, phone-verified -- same pattern as the chat's
+    check_appointment_status intent, but for a dedicated 'My Appointments'
+    page rather than a conversational answer."""
+    return await appointment_service.list_appointments_for_phone(clinic_id, phone)
+
+
+class PatientRescheduleRequest(BaseModel):
+    clinic_id: int
+    phone: str
+    appointment_date: date | None = None
+    appointment_time: time | None = None
+
+
+@router.post("/mine/{appt_id}/reschedule")
+async def reschedule_my_appointment(appt_id: int, body: PatientRescheduleRequest):
+    """Phone-verified reschedule -- a patient can only move their own
+    appointment, never one that isn't tied to the phone they provide."""
+    if body.appointment_date is None and body.appointment_time is None:
+        raise HTTPException(status_code=422, detail="Provide a new appointment_date and/or appointment_time")
+    try:
+        appt = await appointment_service.reschedule_appointment_as_patient(
+            appt_id,
+            body.clinic_id,
+            body.phone,
+            new_date=body.appointment_date,
+            new_time=body.appointment_time.strftime("%H:%M") if body.appointment_time else None,
+        )
+    except appointment_service.NotOwnerError:
+        raise HTTPException(status_code=403, detail="That appointment doesn't belong to this phone number.")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    except SlotUnavailableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return appt
+
+
+class PatientCancelRequest(BaseModel):
+    clinic_id: int
+    phone: str
+
+
+@router.post("/mine/{appt_id}/cancel")
+async def cancel_my_appointment(appt_id: int, body: PatientCancelRequest):
+    """Phone-verified cancel -- same ownership check as reschedule."""
+    try:
+        appt = await appointment_service.cancel_appointment_as_patient(appt_id, body.clinic_id, body.phone)
+    except appointment_service.NotOwnerError:
+        raise HTTPException(status_code=403, detail="That appointment doesn't belong to this phone number.")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return appt
+
+
 @router.get("/doctor-day-schedule")
 async def doctor_day_schedule(clinic_id: int, doctor_id: int, on_date: date):
     """Backs the doctor-wise day view: stat cards, available slots (computed
@@ -82,6 +139,14 @@ async def recent_appointments(clinic_id: int, since: datetime, limit: int = 20):
     notification bell so a booking made via chat shows up as a notification
     just as reliably as one made in the admin panel."""
     return await appointment_service.list_appointments_created_since(clinic_id, since, limit=limit)
+
+
+@router.post("/send-reminders")
+async def send_reminders(clinic_id: int):
+    """Emails patients whose confirmed appointment is ~24h away and hasn't
+    been reminded yet. Needs something to call this on a schedule (cron,
+    a scheduled cloud function, etc.) -- there's no built-in scheduler here."""
+    return await appointment_service.send_due_reminders(clinic_id)
 
 
 @router.get("/{appt_id}")
@@ -160,13 +225,14 @@ async def update_appointment(appt_id: int, body: AppointmentUpdate):
 
 @router.post("/{appt_id}/reschedule")
 async def reschedule_appointment(appt_id: int, body: AppointmentReschedule):
-    if body.appointment_date is None and body.appointment_time is None:
-        raise HTTPException(status_code=422, detail="Provide a new appointment_date and/or appointment_time")
+    if body.appointment_date is None and body.appointment_time is None and body.doctor_id is None:
+        raise HTTPException(status_code=422, detail="Provide a new appointment_date, appointment_time, and/or doctor_id")
     try:
         appt = await appointment_service.reschedule_appointment(
             appt_id,
             new_date=body.appointment_date,
             new_time=body.appointment_time.strftime("%H:%M") if body.appointment_time else None,
+            new_doctor_id=body.doctor_id,
             note=body.note,
         )
     except SlotUnavailableError as exc:

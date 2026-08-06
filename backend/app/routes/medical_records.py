@@ -54,6 +54,13 @@ async def list_records_for_patient(patient_id: int):
     return await medical_record_service.list_records_for_patient(patient_id)
 
 
+@router.get("/mine")
+async def my_records(clinic_id: int, phone: str, limit: int = 20):
+    """Every prescription/report on file for this phone number -- backs the
+    patient-facing My Appointments page showing each visit's report inline."""
+    return await medical_record_service.lookup_recent_for_phone(clinic_id, phone, limit=limit)
+
+
 @router.get("/lookup")
 async def lookup_for_patient(clinic_id: int, phone: str, appointment_id: int | None = None, patient_id: int | None = None):
     """Patient-facing lookup by appointment number or patient number --
