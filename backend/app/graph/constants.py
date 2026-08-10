@@ -1,4 +1,4 @@
-"""Shared constants for the MediBot chat graph.
+"""Shared constants for the I-DocAssistance chat graph.
 
 Intent labels, required-slot definitions, validation patterns, emergency
 keywords and quick-reply templates live here so nodes and prompts import a

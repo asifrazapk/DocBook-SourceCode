@@ -122,7 +122,7 @@ export default function AddDoctorWizard({ clinicId, onClose, onCreated }: Props)
             <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
               {step1Error && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{step1Error}</p>}
               <Field label="Full Name" required>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Siddharth" />
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Umer" />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Email Address" required>

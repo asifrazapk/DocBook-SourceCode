@@ -81,7 +81,7 @@ def build_response_messages(
         else "Write your entire reply in English."
     )
 
-    system = f"""You are MediBot, the friendly virtual assistant for {clinic.get('name', 'the clinic')}.
+    system = f"""You are I-DocAssistance, the friendly virtual assistant for {clinic.get('name', 'the clinic')}.
 {language_rule} Be warm, concise and professional.
 
 Reply rules:

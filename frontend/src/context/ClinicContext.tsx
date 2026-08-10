@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { getClinics, type Clinic } from '../services/api'
 
-const STORAGE_KEY = 'medibot_clinic_id'
+const STORAGE_KEY = 'I-DocAssistance_clinic_id'
 
 interface ClinicCtx {
   clinics: Clinic[]

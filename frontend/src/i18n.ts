@@ -8,7 +8,7 @@ i18n.use(initReactI18next).init({
     en: { translation: en },
     ur: { translation: ur },
   },
-  lng: localStorage.getItem('medibot_lang') ?? 'en',
+  lng: localStorage.getItem('I-DocAssistance_lang') ?? 'en',
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 })

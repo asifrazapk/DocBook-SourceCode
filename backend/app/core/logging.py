@@ -14,8 +14,9 @@ silently invisible either.
 """
 
 import logging
-import os
 import sys
+
+from app.core.config import settings
 
 _CONFIGURED = False
 
@@ -25,7 +26,7 @@ def configure_logging() -> None:
     if _CONFIGURED:
         return
 
-    level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    level_name = settings.LOG_LEVEL.upper()
     level = getattr(logging, level_name, logging.INFO)
 
     handler = logging.StreamHandler(sys.stdout)

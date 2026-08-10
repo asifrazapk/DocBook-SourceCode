@@ -29,7 +29,7 @@ def build_intent_messages(
     history_block = "\n".join(f"{m['role']}: {m['content']}" for m in recent)
     history_block = history_block or "(no prior turns)"
 
-    system = f"""You are the intent classifier for MediBot, a clinic appointment assistant.
+    system = f"""You are the intent classifier for I-DocAssistance, a clinic appointment assistant.
 Classify the patient's LATEST message into exactly one intent.
 
 Allowed intents:

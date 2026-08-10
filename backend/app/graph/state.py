@@ -1,4 +1,4 @@
-"""State threaded through the MediBot chat graph.
+"""State threaded through the I-DocAssistance chat graph.
 
 Populated by chat_service before the graph runs, mutated node-to-node down the
 deterministic pipeline, and read back by chat_service once the graph reaches

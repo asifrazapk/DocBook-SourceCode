@@ -121,6 +121,17 @@ async def cancel_appointment_as_patient(appt_id: int, clinic_id: int, phone: str
     return updated
 
 
+async def enable_telemedicine_as_patient(appt_id: int, clinic_id: int, phone: str) -> dict:
+    """Phone-verified: lets a patient turn their own appointment into a
+    video consultation (e.g. requesting a video visit instead of an
+    in-person one), same ownership check as reschedule/cancel."""
+    await _verify_patient_owns_appointment(appt_id, clinic_id, phone)
+    updated = await update_appointment(appt_id, {"is_telemedicine": True})
+    if not updated:
+        raise ValueError("Appointment not found")
+    return updated
+
+
 async def _enrich_with_names(appts: List[dict], clinic_id: int) -> List[dict]:
     """Attach patient_name/patient_phone/patient_email and doctor_name to
     each appointment for convenient admin-panel display, without requiring
@@ -154,12 +165,6 @@ async def get_appointment(appt_id: int) -> Optional[dict]:
         return None
     enriched = await _enrich_with_names([appt], appt["clinic_id"])
     return enriched[0]
-
-
-async def list_appointments_created_since(clinic_id: int, since: datetime, limit: int = 20) -> List[dict]:
-    """Backs the admin notification bell's polling -- appointments created
-    after `since`, from any source (chat or manual)."""
-    return await AppointmentRepo.list_created_since(clinic_id, since, limit=limit)
 
 
 async def get_doctor_day_schedule(clinic_id: int, doctor_id: int, on_date: date_type) -> Dict[str, Any]:
@@ -292,7 +297,7 @@ async def _book_single_time(
     }
 
     try:
-        return await AppointmentRepo.create(data)
+        created = await AppointmentRepo.create(data)
     except asyncpg.exceptions.UniqueViolationError as exc:
         # Backstop: ux_appointments_doctor_slot caught a race the slot claim
         # above didn't (e.g. no pre-generated slot was in play at all).
@@ -301,6 +306,33 @@ async def _book_single_time(
         raise SlotUnavailableError(
             f"Doctor {doctor_id} is already booked on {appointment_date} at {appointment_time}."
         ) from exc
+
+    await _notify_new_appointment(clinic_id, doctor_id, patient, appointment_date, created.get("status", "pending"))
+    return created
+
+
+async def _notify_new_appointment(clinic_id: int, doctor_id: Optional[int], patient: dict, appointment_date, status: str) -> None:
+    """Best-effort: a new booking (from any source -- chat, admin, or a
+    patient's own self-service page) shows up in the admin notification
+    bell. Failure here should never break the booking itself."""
+    try:
+        from app.services import notification_service
+        from app.repo.doctor_repo import DoctorRepo
+
+        doctor_name = None
+        if doctor_id:
+            doctor = await DoctorRepo.get_by_id(doctor_id)
+            doctor_name = doctor.get("name") if doctor else None
+
+        who = f"{patient.get('name') or 'a patient'}" + (f" with {doctor_name}" if doctor_name else "")
+        message = (
+            f"New appointment request from {who} on {appointment_date} — needs confirmation."
+            if status == "pending"
+            else f"New appointment booked for {who} on {appointment_date}."
+        )
+        await notification_service.create_notification(clinic_id, message, notification_type="appointment_created")
+    except Exception:
+        logger.exception("Failed to create notification for new appointment (booking itself still succeeded)")
 
 
 async def _send_templated_email(clinic_id: int, to_address: str, subject: str, body: str):
@@ -389,7 +421,7 @@ async def update_appointment(appt_id: int, data: Dict[str, Any], note: Optional[
         # and meet.jit.si/<key> is immediately a real, working video room.
         import uuid
 
-        payload["video_room_key"] = f"medibot-{existing['clinic_id']}-{appt_id}-{uuid.uuid4().hex[:8]}"
+        payload["video_room_key"] = f"I-DocAssistance-{existing['clinic_id']}-{appt_id}-{uuid.uuid4().hex[:8]}"
 
     try:
         updated = await AppointmentRepo.update(appt_id, payload)
@@ -504,7 +536,7 @@ def _send_confirmation_email_sync(appt: dict, patient: dict, email_cfg: Dict[str
     try:
         is_urdu = appt.get("language") == "ur"
         times_line = ", ".join(str(t)[:5] for t in appointment_times)
-        subject = "تصدیق — MediBot اپوائنٹمنٹ" if is_urdu else "Appointment Confirmation — MediBot"
+        subject = "تصدیق — I-DocAssistance اپوائنٹمنٹ" if is_urdu else "Appointment Confirmation — I-DocAssistance"
         if is_urdu:
             body = (
                 f"محترم {patient.get('name')}،\n\n"
@@ -512,7 +544,7 @@ def _send_confirmation_email_sync(appt: dict, patient: dict, email_cfg: Dict[str
                 f"تاریخ: {appt.get('appointment_date')}\n"
                 f"وقت: {times_line}\n"
                 f"وجہ: {appt.get('reason') or 'N/A'}\n\n"
-                f"منسوخ کرنے کے لیے کلینک سے رابطہ کریں۔\n\nشکریہ — MediBot"
+                f"منسوخ کرنے کے لیے کلینک سے رابطہ کریں۔\n\nشکریہ — I-DocAssistance"
             )
         else:
             body = (
@@ -521,7 +553,7 @@ def _send_confirmation_email_sync(appt: dict, patient: dict, email_cfg: Dict[str
                 f"Date: {appt.get('appointment_date')}\n"
                 f"Time: {times_line}\n"
                 f"Reason: {appt.get('reason') or 'N/A'}\n\n"
-                f"To cancel, please contact the clinic.\n\nThank you — MediBot"
+                f"To cancel, please contact the clinic.\n\nThank you — I-DocAssistance"
             )
 
         msg = MIMEMultipart()

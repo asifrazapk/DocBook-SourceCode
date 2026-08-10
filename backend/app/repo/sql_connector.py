@@ -1,4 +1,3 @@
-import os
 import asyncio
 import asyncpg
 import logging
@@ -82,14 +81,14 @@ async def init_db_pools(
 ):
     global write_pool, read_pool
 
-    primary_host = os.getenv("POSTGRES_HOST", "localhost")
-    read_host = os.getenv("POSTGRES_READ_HOST", "")
+    primary_host = settings.POSTGRES_HOST
+    read_host = settings.POSTGRES_READ_HOST
 
-    port = port or int(os.getenv("POSTGRES_PORT", 5432))
-    user = user or os.getenv("POSTGRES_USER", "postgres")
-    password = password or os.getenv("POSTGRES_PASSWORD", "1234")
-    database = database or os.getenv("POSTGRES_DB", "sprouts_db")
-    schema = schema or os.getenv("POSTGRES_SCHEMA", "public")
+    port = port or settings.POSTGRES_PORT
+    user = user or settings.POSTGRES_USER
+    password = password or settings.POSTGRES_PASSWORD
+    database = database or settings.POSTGRES_DB
+    schema = schema or settings.POSTGRES_SCHEMA
 
     if write_pool is None:
         # Primary / write pool

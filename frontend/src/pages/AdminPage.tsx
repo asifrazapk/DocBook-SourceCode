@@ -32,7 +32,7 @@ function statusBadge(status: string) {
 }
 
 export default function AdminPage() {
-  // const [token, setToken] = useState(localStorage.getItem('medibot_token'))
+  // const [token, setToken] = useState(localStorage.getItem('I-DocAssistance_token'))
   const [token, setToken] = useState('dev-token')
   const [activeNav, setActiveNav] = useState<NavItem>('appointments')
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
@@ -48,7 +48,7 @@ export default function AdminPage() {
   // const handleLogin = async () => {
   //   try {
   //     const res = await adminLogin(loginSlug, loginPass)
-  //     localStorage.setItem('medibot_token', res.data.access_token)
+  //     localStorage.setItem('I-DocAssistance_token', res.data.access_token)
   //     setToken(res.data.access_token)
   //     setLoginError('')
   //   } catch {
@@ -57,7 +57,7 @@ export default function AdminPage() {
   // }
 
   const handleLogout = () => {
-    localStorage.removeItem('medibot_token')
+    localStorage.removeItem('I-DocAssistance_token')
     setToken(null)
   }
 
@@ -97,7 +97,7 @@ export default function AdminPage() {
   //             M
   //           </div>
   //           <div>
-  //             <h2 className="text-lg font-bold text-gray-900">MediBot Admin Panel</h2>
+  //             <h2 className="text-lg font-bold text-gray-900">I-DocAssistance Admin Panel</h2>
   //             <p className="text-xs text-gray-400">MediCare Hospital Karachi</p>
   //           </div>
   //         </div>
@@ -138,7 +138,7 @@ export default function AdminPage() {
       {/* ── Sidebar ── */}
       <aside className="w-44 flex flex-col flex-shrink-0" style={{ backgroundColor: DARK }}>
         <div className="px-4 py-4 border-b border-white/10">
-          <p className="text-white font-bold text-sm">MediBot</p>
+          <p className="text-white font-bold text-sm">I-DocAssistance</p>
           <p className="text-gray-500 text-xs mt-0.5">Admin Panel</p>
         </div>
         <nav className="flex-1 py-2">
@@ -171,7 +171,7 @@ export default function AdminPage() {
           style={{ backgroundColor: DARK }}
         >
           <div>
-            <h1 className="font-bold text-base">MediBot Admin Panel</h1>
+            <h1 className="font-bold text-base">I-DocAssistance Admin Panel</h1>
             <p className="text-gray-400 text-xs mt-0.5">MediCare Hospital Karachi</p>
           </div>
           <button

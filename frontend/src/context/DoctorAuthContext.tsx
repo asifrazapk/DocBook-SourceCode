@@ -21,8 +21,8 @@ export function useDoctorAuth() {
   return useContext(Ctx)
 }
 
-const TOKEN_KEY = 'medibot_token'
-const USER_KEY = 'medibot_doctor_user'
+const TOKEN_KEY = 'I-DocAssistance_token'
+const USER_KEY = 'I-DocAssistance_doctor_user'
 
 export function DoctorAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)

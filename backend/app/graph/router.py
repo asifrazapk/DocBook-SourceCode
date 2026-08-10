@@ -1,4 +1,4 @@
-"""Conditional-edge routing functions for the MediBot chat graph.
+"""Conditional-edge routing functions for the I-DocAssistance chat graph.
 
 Each function reads the current ChatState and returns the name of the next node.
 Keeping all routing in one file makes the control flow easy to audit against the

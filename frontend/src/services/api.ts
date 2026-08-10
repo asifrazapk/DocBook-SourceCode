@@ -3,7 +3,7 @@ import axios from 'axios'
 const api = axios.create({ baseURL: '/api' })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('medibot_token')
+  const token = localStorage.getItem('I-DocAssistance_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -11,8 +11,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('medibot_token')
+    const isLoginAttempt = err.config?.url?.includes('/auth/login')
+    if (err.response?.status === 401 && !isLoginAttempt) {
+      localStorage.removeItem('I-DocAssistance_token')
       window.location.reload()
     }
     return Promise.reject(err)
@@ -292,8 +293,27 @@ export const getChatConversations = (clinicId: number, phone: string, page = 1, 
 export const submitChatFeedback = (messageId: string, feedbackType: 0 | 1, feedbackValue = '') =>
   api.post('/chat/feedback', { message_id: messageId, feedback_type: feedbackType, feedback_value: feedbackValue })
 
-export const getRecentAppointments = (clinicId: number, since: string, limit = 20) =>
-  api.get<Appointment[]>('/appointments/recent', { params: { clinic_id: clinicId, since, limit } })
+export interface AppNotification {
+  id: number
+  clinic_id: number
+  message: string
+  notification_type: string
+  reference_id: number | null
+  is_read: boolean
+  server_created_at: string
+}
+export interface NotificationPage {
+  items: AppNotification[]
+  total: number
+  unread_count: number
+  page: number
+  page_size: number
+  has_more: boolean
+}
+export const getNotifications = (clinicId: number, page = 1, pageSize = 10) =>
+  api.get<NotificationPage>('/notifications', { params: { clinic_id: clinicId, page, page_size: pageSize } })
+export const markAllNotificationsRead = (clinicId: number) =>
+  api.post<{ updated: number }>('/notifications/mark-all-read', null, { params: { clinic_id: clinicId } })
 
 // ---------------------------------------------------------------------------
 // Doctors
@@ -700,6 +720,9 @@ export const rescheduleMyAppointment = (appointmentId: number, data: { new_date?
 export const cancelMyAppointment = (appointmentId: number, note?: string | null) =>
   api.post<Appointment>(`/doctor-portal/appointments/${appointmentId}/cancel`, { note })
 
+export const enableMyTelemedicine = (appointmentId: number) =>
+  api.post<Appointment>(`/doctor-portal/appointments/${appointmentId}/telemedicine`)
+
 // ---------------------------------------------------------------------------
 // Waitlist
 // ---------------------------------------------------------------------------
@@ -760,6 +783,9 @@ export const patientRescheduleAppointment = (
 
 export const patientCancelAppointment = (appointmentId: number, clinicId: number, phone: string) =>
   api.post<Appointment>(`/appointments/mine/${appointmentId}/cancel`, { clinic_id: clinicId, phone })
+
+export const patientEnableTelemedicine = (appointmentId: number, clinicId: number, phone: string) =>
+  api.post<Appointment>(`/appointments/mine/${appointmentId}/telemedicine`, { clinic_id: clinicId, phone })
 
 export const getMyMedicalRecordsByPhone = (clinicId: number, phone: string) =>
   api.get<MedicalRecord[]>('/medical-records/mine', { params: { clinic_id: clinicId, phone } })

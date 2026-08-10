@@ -24,7 +24,10 @@ import ThemeColorPicker from '../../components/ThemeColorPicker'
 import NotificationBell from '../../components/NotificationBell'
 import { useNotifications } from '../../context/NotificationContext'
 import { useClinic } from '../../context/ClinicContext'
-import { getGeneralSettings, getRecentAppointments } from '../../services/api'
+import { useAdminAuth } from '../../context/AdminAuthContext'
+import AdminLoginPage from './AdminLoginPage'
+import { Spinner } from '../../components/ui/Card'
+import { getGeneralSettings } from '../../services/api'
 
 const APP_NAME = 'I-DocAssistance'
 const SIDEBAR_STORAGE_KEY = 'idoc_sidebar_collapsed'
@@ -48,7 +51,8 @@ const NAV_ITEMS = [
 export default function AdminLayout() {
   const { clinic, clinicId, error } = useClinic()
   const { colors } = useTheme()
-  const { setEnabled, add: notify } = useNotifications()
+  const { setEnabled, setClinicId, refresh } = useNotifications()
+  const { user: adminUser, loading: authLoading, logout: authLogout } = useAdminAuth()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1')
 
@@ -63,37 +67,19 @@ export default function AdminLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicId])
 
-  // Poll for newly created appointments -- this is what makes a booking made
-  // via the patient chat (a different browser/session entirely) show up as a
-  // notification here just as reliably as one made in the admin panel.
+  // Notifications are created server-side now (e.g. the moment a booking is
+  // made, from any source -- chat, admin, or a patient's own self-service
+  // page), so the admin panel just needs to load the current clinic's list
+  // and periodically refresh it to pick up anything new.
+  useEffect(() => {
+    setClinicId(clinicId ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId])
+
   useEffect(() => {
     if (!clinicId) return
-    let since = new Date().toISOString()
-    let cancelled = false
-
-    const poll = async () => {
-      try {
-        const res = await getRecentAppointments(clinicId, since)
-        if (cancelled) return
-        for (const appt of res.data) {
-          const who = `${appt.patient_name ?? 'a patient'}${appt.doctor_name ? ` with ${appt.doctor_name}` : ''}`
-          notify(
-            appt.status === 'pending'
-              ? `New appointment request from ${who} on ${appt.appointment_date} — needs confirmation.`
-              : `New appointment booked for ${who} on ${appt.appointment_date}.`
-          )
-        }
-        if (res.data.length > 0) since = new Date().toISOString()
-      } catch {
-        /* transient network hiccup — try again next tick */
-      }
-    }
-
-    const interval = setInterval(poll, 20000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
+    const interval = setInterval(refresh, 20000)
+    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicId])
 
@@ -106,6 +92,17 @@ export default function AdminLayout() {
   }
 
   const currentNav = NAV_ITEMS.find((n) => location.pathname.includes(`/admin/${n.to}`))
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <Spinner />
+      </div>
+    )
+  }
+  if (!adminUser) {
+    return <AdminLoginPage />
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: COLORS.surface }}>
@@ -148,10 +145,7 @@ export default function AdminLayout() {
 
         <div className="px-3 pb-4 border-t border-slate-100 pt-3">
           <button
-            onClick={() => {
-              localStorage.removeItem('medibot_token')
-              window.location.href = '/'
-            }}
+            onClick={authLogout}
             title={collapsed ? 'Logout' : undefined}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors ${
               collapsed ? 'justify-center px-0' : ''
@@ -188,11 +182,11 @@ export default function AdminLayout() {
                 className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold relative flex-shrink-0"
                 style={{ backgroundColor: colors.primary }}
               >
-                {clinic ? initials(clinic.name) : 'A'}
+                {adminUser ? initials(adminUser.name) : 'A'}
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
               </div>
               <div className="hidden lg:block min-w-0">
-                <p className="text-xs font-semibold text-slate-800 truncate max-w-[120px]">{clinic?.name ?? 'Admin'}</p>
+                <p className="text-xs font-semibold text-slate-800 truncate max-w-[120px]">{adminUser?.name ?? 'Admin'}</p>
                 <p className="text-[11px] text-slate-400">Admin</p>
               </div>
             </div>

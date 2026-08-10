@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, CalendarCheck } from 'lucide-react'
+import { Bell, CalendarCheck, Loader2, ChevronDown } from 'lucide-react'
 import { useNotifications } from '../context/NotificationContext'
 
-function timeAgo(ts: number) {
-  const diffMin = Math.floor((Date.now() - ts) / 60000)
+function timeAgo(iso: string) {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
   if (diffMin < 1) return 'just now'
   if (diffMin < 60) return `${diffMin}m ago`
   const diffHr = Math.floor(diffMin / 60)
@@ -12,9 +12,10 @@ function timeAgo(ts: number) {
 }
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markAllRead } = useNotifications()
+  const { notifications, unreadCount, hasMore, loading, loadMore, markAllRead } = useNotifications()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -23,6 +24,12 @@ export default function NotificationBell() {
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
+
+  const onScroll = () => {
+    const el = listRef.current
+    if (!el || loading || !hasMore) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) loadMore()
+  }
 
   return (
     <div className="relative" ref={ref}>
@@ -42,25 +49,37 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl border border-slate-200 shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl border border-slate-200 shadow-lg z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100">
             <p className="text-sm font-bold text-slate-900">Notifications</p>
           </div>
-          <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
+          <div ref={listRef} onScroll={onScroll} className="max-h-80 overflow-y-auto">
+            {notifications.length === 0 && !loading ? (
               <p className="text-xs text-slate-400 text-center py-8">No notifications yet.</p>
             ) : (
-              notifications.map((n) => (
-                <div key={n.id} className="flex items-start gap-2.5 px-4 py-3 border-b border-slate-50 last:border-0">
-                  <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CalendarCheck size={13} />
+              <>
+                {notifications.map((n) => (
+                  <div key={n.id} className={`flex items-start gap-2.5 px-4 py-3 border-b border-slate-50 last:border-0 ${!n.is_read ? 'bg-slate-50/70' : ''}`}>
+                    <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <CalendarCheck size={13} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-700">{n.message}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(n.server_created_at)}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-700">{n.message}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(n.timestamp)}</p>
-                  </div>
-                </div>
-              ))
+                ))}
+                {hasMore && (
+                  <button
+                    onClick={loadMore}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 py-2.5 disabled:opacity-60"
+                  >
+                    {loading ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} />}
+                    {loading ? 'Loading…' : 'Load 10 more'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

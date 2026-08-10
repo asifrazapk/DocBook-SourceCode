@@ -9,6 +9,14 @@ interface Props {
   role: 'user' | 'assistant'
   content: string
   messageId?: string
+  onBeforeSpeak?: () => void
+  // Controlled mode: when provided, this message's Listen/Stop button
+  // reflects and drives an external playback state (e.g. the voice chat's
+  // auto-play) instead of managing its own browser-speechSynthesis-only
+  // state. Used so the button doesn't say "Listen" while audio from a
+  // different mechanism (like ElevenLabs) is already playing this message.
+  forcedSpeaking?: boolean
+  onToggleSpeak?: () => void
 }
 
 const speechSupported = typeof window !== 'undefined' && !!window.speechSynthesis
@@ -27,7 +35,7 @@ function findVoice(langPrefix: string): SpeechSynthesisVoice | undefined {
   return cachedVoices.find((v) => v.lang.toLowerCase().startsWith(langPrefix))
 }
 
-export default function MessageBubble({ role, content, messageId }: Props) {
+export default function MessageBubble({ role, content, messageId, onBeforeSpeak, forcedSpeaking, onToggleSpeak }: Props) {
   const { colors } = useTheme()
   const toast = useToast()
   const isUser = role === 'user'
@@ -36,6 +44,8 @@ export default function MessageBubble({ role, content, messageId }: Props) {
   const [askingComment, setAskingComment] = useState(false)
   const [comment, setComment] = useState('')
   const [speaking, setSpeaking] = useState(false)
+  const isControlled = onToggleSpeak !== undefined
+  const displaySpeaking = isControlled ? !!forcedSpeaking : speaking
 
   useEffect(() => {
     return () => {
@@ -65,6 +75,7 @@ export default function MessageBubble({ role, content, messageId }: Props) {
     // Strip markdown bullets/asterisks so it doesn't read punctuation aloud.
     const plain = content.replace(/[*_#`]/g, '').replace(/^-\s+/gm, '')
     const utterance = new SpeechSynthesisUtterance(plain)
+    onBeforeSpeak?.() // e.g. stop any other audio (like the voice chat's auto-play) before this starts
 
     if (isUrdu) {
       const urduVoice = findVoice('ur')
@@ -156,13 +167,13 @@ export default function MessageBubble({ role, content, messageId }: Props) {
         </button>
         {speechSupported && (
           <button
-            onClick={toggleSpeak}
+            onClick={isControlled ? onToggleSpeak : toggleSpeak}
             className="flex items-center gap-1 text-xs hover:text-slate-600 transition-colors"
-            title={speaking ? 'Stop reading' : 'Read aloud'}
-            style={speaking ? { color: colors.primary } : undefined}
+            title={displaySpeaking ? 'Stop reading' : 'Read aloud'}
+            style={displaySpeaking ? { color: colors.primary } : undefined}
           >
-            {speaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
-            {speaking ? 'Stop' : 'Listen'}
+            {displaySpeaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+            {displaySpeaking ? 'Stop' : 'Listen'}
           </button>
         )}
         <span className="flex-1" />

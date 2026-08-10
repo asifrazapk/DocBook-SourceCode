@@ -6,7 +6,6 @@ import {
   MicOff,
   MessageSquare,
   Loader2,
-  Trash2,
   ShieldAlert,
   CalendarCheck,
   HelpCircle,
@@ -18,6 +17,7 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import ChatLogin, { type ChatIdentity } from '../components/ChatLogin'
 import ChatSidebar from '../components/ChatSidebar'
+import MessageBubble from '../components/MessageBubble'
 import ThemeColorPicker from '../components/ThemeColorPicker'
 import { sendVoiceMessage, getChatHistory } from '../services/api'
 import { useClinic } from '../context/ClinicContext'
@@ -37,6 +37,7 @@ function loadIdentity(): ChatIdentity | null {
 interface Turn {
   role: 'patient' | 'assistant'
   text: string
+  messageId?: string
 }
 
 type MicState = 'idle' | 'listening' | 'reviewing' | 'sending'
@@ -51,6 +52,7 @@ export default function VoiceChatPage() {
   const [micState, setMicState] = useState<MicState>('idle')
   const [draftText, setDraftText] = useState('')
   const [speaking, setSpeaking] = useState(false)
+  const [lastReply, setLastReply] = useState<{ text: string; language: string } | null>(null)
   const [audioUnavailable, setAudioUnavailable] = useState(false)
   const [error, setError] = useState('')
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
@@ -94,6 +96,7 @@ export default function VoiceChatPage() {
     setError('')
     setDraftText('')
     setMicState('idle')
+    setLastReply(null)
     isFirstMessageRef.current = true
   }
 
@@ -156,9 +159,11 @@ export default function VoiceChatPage() {
     setMicState('sending')
     setTurns((prev) => [...prev, { role: 'patient', text }])
     setDraftText('')
+    setLastReply(null)
     try {
       const res = await sendVoiceMessage(clinicId, sessionId, text, identity.phone, identity.name, i18n.language)
-      setTurns((prev) => [...prev, { role: 'assistant', text: res.data.reply }])
+      setTurns((prev) => [...prev, { role: 'assistant', text: res.data.reply, messageId: res.data.message_id }])
+      setLastReply({ text: res.data.reply, language: res.data.language })
       if (isFirstMessage) setSidebarRefreshKey((k) => k + 1)
 
       if (res.data.reply_audio_base64) {
@@ -182,6 +187,30 @@ export default function VoiceChatPage() {
       setError(err?.response?.data?.detail || "Sorry, that didn't come through. Please try again.")
     } finally {
       setMicState('idle')
+    }
+  }
+
+  // Drives the Listen/Stop button on the latest assistant message: stop the
+  // currently-playing reply, or (if playback already ended) play it again
+  // -- reusing the ElevenLabs audio if it's still loaded, else falling back
+  // to browser speech synthesis.
+  const toggleLastMessagePlayback = () => {
+    if (speaking) {
+      stopSpeaking()
+      return
+    }
+    if (audioElRef.current?.src) {
+      void audioElRef.current.play()
+      return
+    }
+    if (lastReply && window.speechSynthesis) {
+      const utterance = new SpeechSynthesisUtterance(lastReply.text)
+      utterance.lang = lastReply.language === 'ur' ? 'ur-PK' : 'en-US'
+      utterance.onstart = () => setSpeaking(true)
+      utterance.onend = () => setSpeaking(false)
+      utterance.onerror = () => setSpeaking(false)
+      utteranceRef.current = utterance
+      window.speechSynthesis.speak(utterance)
     }
   }
 
@@ -234,9 +263,6 @@ export default function VoiceChatPage() {
             >
               <CalendarCheck size={13} /> My Appointments
             </Link>
-            <button onClick={startNewChat} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100" title="Clear and start a new conversation">
-              <Trash2 size={13} /> Clear
-            </button>
             <Link to="/" className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5" style={{ color: colors.primary }} title="Switch to typing">
               <MessageSquare size={13} /> Text chat
             </Link>
@@ -246,7 +272,7 @@ export default function VoiceChatPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {!voiceSupported && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
               Your browser doesn't support voice input — try Chrome or Edge, or use the text chat instead.
@@ -255,26 +281,20 @@ export default function VoiceChatPage() {
           {turns.length === 0 && micState === 'idle' && voiceSupported && (
             <p className="text-sm text-slate-400 text-center mt-10">Tap the microphone below and say something, like "I'd like to book an appointment."</p>
           )}
-          {turns.map((t, i) => (
-            <div key={i} className={`flex ${t.role === 'patient' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${t.role === 'patient' ? 'bg-slate-100 text-slate-800 rounded-tr-sm' : 'rounded-tl-sm'}`}
-                style={t.role === 'assistant' ? { backgroundColor: `${colors.primary}0F` } : undefined}
-              >
-                {t.text}
-                {t.role === 'assistant' && i === turns.length - 1 && speaking && (
-                  <span className="flex items-center gap-1 mt-1.5 text-[11px] font-semibold" style={{ color: colors.primary }}>
-                    <span className="flex gap-0.5">
-                      <span className="w-0.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: colors.primary }} />
-                      <span className="w-0.5 h-3.5 rounded-full animate-pulse" style={{ backgroundColor: colors.primary, animationDelay: '150ms' }} />
-                      <span className="w-0.5 h-2 rounded-full animate-pulse" style={{ backgroundColor: colors.primary, animationDelay: '300ms' }} />
-                    </span>
-                    Speaking…
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+          {turns.map((t, i) => {
+            const isLastAssistant = t.role === 'assistant' && i === turns.length - 1 && lastReply !== null
+            return (
+              <MessageBubble
+                key={i}
+                role={t.role === 'patient' ? 'user' : 'assistant'}
+                content={t.text}
+                messageId={t.messageId}
+                onBeforeSpeak={stopSpeaking}
+                forcedSpeaking={isLastAssistant ? speaking : undefined}
+                onToggleSpeak={isLastAssistant ? toggleLastMessagePlayback : undefined}
+              />
+            )
+          })}
           {audioUnavailable && speaking && (
             <p className="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1">
               <Volume2 size={11} /> Using your browser's built-in voice (server voice isn't configured)
@@ -341,3 +361,4 @@ export default function VoiceChatPage() {
     </div>
   )
 }
+

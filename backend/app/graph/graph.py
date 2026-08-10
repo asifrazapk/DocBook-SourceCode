@@ -1,4 +1,4 @@
-"""Assemble and compile the MediBot deterministic node pipeline.
+"""Assemble and compile the I-DocAssistance deterministic node pipeline.
 
 Flow (see router.py for the conditional edges):
 

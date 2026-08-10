@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # PostgreSQL
     POSTGRES_HOST: str = "localhost"
+    POSTGRES_READ_HOST: str = ""  # optional read replica; empty means reads use the primary
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str
     POSTGRES_USER: str
@@ -21,6 +22,13 @@ class Settings(BaseSettings):
     DB_POOL_MIN_SIZE: int = 2
     DB_POOL_MAX_SIZE: int = 10
 
+    # App-wide
+    DEBUG: bool = False
+    LOG_LEVEL: str = "INFO"
+    # Comma-separated list of allowed origins, or "*" for any. Parsed into a
+    # list by app/main.py before being passed to CORSMiddleware.
+    CORS_ALLOWED_ORIGINS: str = "*"
+
     # Azure OpenAI
     AZURE_OPENAI_ENDPOINT_SM: str
     AZURE_OPENAI_KEY_SM: str
@@ -29,13 +37,13 @@ class Settings(BaseSettings):
 
     # ElevenLabs (text-to-speech for the voice chat interface). Optional --
     # if unset, voice replies fall back to no audio (text-only).
-    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_API_KEY: str = "sk_d64ebbc4bc94276c9d28b9e4b19b52b961807ae1e5d562fc"
     ELEVENLABS_VOICE_ID: str = "JBFqnCBsd6RMkjVDRZzb"
 
     # Mail
     MAIL_USERNAME: str = ""
     MAIL_PASSWORD: str = ""
-    MAIL_FROM: str = "noreply@medibot.pk"
+    MAIL_FROM: str = "noreply@I-DocAssistance.pk"
     MAIL_PORT: int = 587
     MAIL_SERVER: str = "smtp.gmail.com"
 

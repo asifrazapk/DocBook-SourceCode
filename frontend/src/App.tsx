@@ -27,6 +27,7 @@ import { ClinicProvider } from './context/ClinicContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { NotificationProvider } from './context/NotificationContext'
 import { DoctorAuthProvider } from './context/DoctorAuthContext'
+import { AdminAuthProvider } from './context/AdminAuthContext'
 import { ToastProvider } from './components/ui/Toast'
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
         <NotificationProvider>
           <ClinicProvider>
             <DoctorAuthProvider>
+              <AdminAuthProvider>
               <BrowserRouter>
                 <Routes>
                   <Route path="/" element={<ChatPage />} />
@@ -68,6 +70,7 @@ export default function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </BrowserRouter>
+            </AdminAuthProvider>
             </DoctorAuthProvider>
           </ClinicProvider>
         </NotificationProvider>

@@ -1,8 +1,8 @@
 -- ============================================================
--- MediBot Dummy/Seed Data
+-- I-DocAssistance Dummy/Seed Data
 -- Run AFTER db/schema.sql has been applied.
 --
---   psql -U medibot -d medibot -f db/seed_data.sql
+--   psql -U I-DocAssistance -d I-DocAssistance -f db/seed_data.sql
 --
 -- FK / insert order:
 -- clinics -> doctors -> doctor_availability -> doctor_leaves
@@ -22,16 +22,16 @@ BEGIN;
 -- clinics (12)
 -- ------------------------------------------------------------
 INSERT INTO clinics (name, slug, address, phone, email, opening_hours, timezone, logo_url) VALUES
-('Al-Shifa General Clinic',     'al-shifa-general',     '12-B Gulberg III, Lahore',            '+92-42-35761234', 'info@alshifa.pk',      '{"mon_fri": "9:00-21:00", "sat": "10:00-18:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/al-shifa.png'),
-('City Care Hospital',          'city-care-hospital',   '45 Shahrah-e-Faisal, Karachi',        '+92-21-34567890', 'contact@citycare.pk',  '{"mon_fri": "8:00-22:00", "sat": "9:00-20:00", "sun": "10:00-14:00"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/citycare.png'),
+('Al-Shifa General Clinic',     'al-shifa-general',     '12-B Gulberg III, Lahore',            '+92-42-35761234', 'info@alshifa.pk',      '{"mon_fri": "9:00-21:00", "sat": "10:00-18:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.I-DocAssistance.pk/logos/al-shifa.png'),
+('City Care Hospital',          'city-care-hospital',   '45 Shahrah-e-Faisal, Karachi',        '+92-21-34567890', 'contact@citycare.pk',  '{"mon_fri": "8:00-22:00", "sat": "9:00-20:00", "sun": "10:00-14:00"}', 'Asia/Karachi', 'https://cdn.I-DocAssistance.pk/logos/citycare.png'),
 ('Blue Cross Clinic',           'blue-cross-clinic',    '78 F-10 Markaz, Islamabad',           '+92-51-2345678',  'hello@bluecross.pk',   '{"mon_fri": "9:00-20:00", "sat": "9:00-17:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Family Health Center',        'family-health-center', '23 Model Town, Lahore',               '+92-42-35123456', 'care@familyhealth.pk', '{"mon_sat": "8:30-21:30", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/fhc.png'),
+('Family Health Center',        'family-health-center', '23 Model Town, Lahore',               '+92-42-35123456', 'care@familyhealth.pk', '{"mon_sat": "8:30-21:30", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.I-DocAssistance.pk/logos/fhc.png'),
 ('Marina Medical Complex',      'marina-medical',       '5 Clifton Block 4, Karachi',          '+92-21-35897456', 'info@marinamed.pk',    '{"mon_fri": "9:00-22:00", "sat": "9:00-18:00", "sun": "closed"}', 'Asia/Karachi', NULL),
 ('Green Valley Clinic',         'green-valley-clinic',  '9 Bahria Town Phase 4, Rawalpindi',   '+92-51-5123456',  'support@greenvalley.pk','{"mon_fri": "10:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Al-Noor Diagnostic & Clinic', 'al-noor-diagnostic',   '34 Satellite Town, Rawalpindi',       '+92-51-4567890',  'info@alnoor.pk',       '{"mon_sat": "8:00-20:00", "sun": "9:00-13:00"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/alnoor.png'),
+('Al-Noor Diagnostic & Clinic', 'al-noor-diagnostic',   '34 Satellite Town, Rawalpindi',       '+92-51-4567890',  'info@alnoor.pk',       '{"mon_sat": "8:00-20:00", "sun": "9:00-13:00"}', 'Asia/Karachi', 'https://cdn.I-DocAssistance.pk/logos/alnoor.png'),
 ('Riverside Medical Center',    'riverside-medical',    '61 DHA Phase 6, Lahore',              '+92-42-37123456', 'contact@riverside.pk', '{"mon_fri": "9:00-21:00", "sat": "9:00-15:00", "sun": "closed"}', 'Asia/Karachi', NULL),
 ('Sunrise Family Clinic',       'sunrise-family',       '17 North Nazimabad, Karachi',         '+92-21-36123456', 'hello@sunrisefc.pk',   '{"mon_sat": "9:00-21:00", "sun": "closed"}', 'Asia/Karachi', NULL),
-('Horizon Health Clinic',       'horizon-health',       '88 G-9 Markaz, Islamabad',            '+92-51-2876543',  'care@horizonhealth.pk','{"mon_fri": "8:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.medibot.pk/logos/horizon.png'),
+('Horizon Health Clinic',       'horizon-health',       '88 G-9 Markaz, Islamabad',            '+92-51-2876543',  'care@horizonhealth.pk','{"mon_fri": "8:00-20:00", "sat": "10:00-16:00", "sun": "closed"}', 'Asia/Karachi', 'https://cdn.I-DocAssistance.pk/logos/horizon.png'),
 ('Crescent Clinic & Maternity', 'crescent-clinic',      '3 Johar Town, Lahore',                '+92-42-35991234', 'info@crescentclinic.pk','{"mon_sun": "24/7"}', 'Asia/Karachi', NULL),
 ('Al-Falah Multan Clinic',      'al-falah-multan',      '22 Cantt Bazaar, Multan',             '+92-61-4567321',  'support@alfalah.pk',   '{"mon_fri": "9:00-21:00", "sat": "9:00-17:00", "sun": "closed"}', 'Asia/Karachi', NULL)
 ON CONFLICT (slug) DO NOTHING;
@@ -418,5 +418,23 @@ FROM (VALUES
 ) AS v(message_id, relevance, correctness, faithfulness, completeness, overall_score, is_hallucination, reasoning, improvement_suggestion)
 JOIN messages m ON m.message_id = v.message_id
 ON CONFLICT (message_id) DO NOTHING;
+
+-- ------------------------------------------------------------
+-- notifications (sample)
+-- Seeded appointments above are inserted directly via SQL, not through the
+-- application's book_appointment() service, so they don't pass through the
+-- code path that normally creates a notification for each new booking.
+-- A few sample rows here give the admin notification bell something to
+-- show on a fresh install rather than starting empty. Guarded on clinic 1
+-- already having notifications, so re-running this script doesn't
+-- duplicate them.
+-- ------------------------------------------------------------
+INSERT INTO notifications (clinic_id, message, notification_type, is_read)
+SELECT * FROM (VALUES
+    (1, 'New appointment request from Sana Iqbal with Dr. Bilal Ahmed on 2026-08-09 — needs confirmation.', 'appointment_created', false),
+    (1, 'New appointment booked for Ahmed Raza with Dr. Ayesha Khan on 2026-08-08.', 'appointment_created', false),
+    (1, 'New appointment request from Ahmed Raza with Dr. Bilal Ahmed on 2026-08-22 — needs confirmation.', 'appointment_created', true)
+) AS v(clinic_id, message, notification_type, is_read)
+WHERE NOT EXISTS (SELECT 1 FROM notifications WHERE clinic_id = 1);
 
 COMMIT;

@@ -126,19 +126,32 @@ async def cancel_my_appointment(appt_id: int, body: PatientCancelRequest):
     return appt
 
 
+class PatientTelemedicineRequest(BaseModel):
+    clinic_id: int
+    phone: str
+
+
+@router.post("/mine/{appt_id}/telemedicine")
+async def enable_my_telemedicine(appt_id: int, body: PatientTelemedicineRequest):
+    """Phone-verified: patient requests/joins a video consultation for
+    their own appointment. Idempotent -- generates a Jitsi room key only
+    once, so this is also how the patient re-fetches an already-created
+    room's key if the doctor enabled it first."""
+    try:
+        appt = await appointment_service.enable_telemedicine_as_patient(appt_id, body.clinic_id, body.phone)
+    except appointment_service.NotOwnerError:
+        raise HTTPException(status_code=403, detail="That appointment doesn't belong to this phone number.")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return appt
+
+
 @router.get("/doctor-day-schedule")
 async def doctor_day_schedule(clinic_id: int, doctor_id: int, on_date: date):
     """Backs the doctor-wise day view: stat cards, available slots (computed
     on the fly), and the day's appointments."""
     return await appointment_service.get_doctor_day_schedule(clinic_id, doctor_id, on_date)
 
-
-@router.get("/recent")
-async def recent_appointments(clinic_id: int, since: datetime, limit: int = 20):
-    """Appointments created after `since` -- polled by the admin
-    notification bell so a booking made via chat shows up as a notification
-    just as reliably as one made in the admin panel."""
-    return await appointment_service.list_appointments_created_since(clinic_id, since, limit=limit)
 
 
 @router.post("/send-reminders")

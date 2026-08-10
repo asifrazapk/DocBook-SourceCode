@@ -90,7 +90,7 @@ def _build_system_prompt(clinic: dict, faqs: list[dict]) -> str:
     faq_block = "\n".join(
         f"Q: {f['question_en']} | A: {f['answer_en']}" for f in faqs[:20]
     )
-    return f"""You are MediBot, the friendly virtual assistant for {clinic['name']}.
+    return f"""You are I-DocAssistance, the friendly virtual assistant for {clinic['name']}.
 You help patients book appointments, answer questions about the clinic, and handle basic symptom queries.
 Always be clear, calm, and professional. Never diagnose — always recommend seeing a doctor for medical concerns.
 For emergencies, direct the patient to call 1122 or 115 immediately.

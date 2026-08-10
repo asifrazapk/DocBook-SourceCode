@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LogOut, Stethoscope, FileText, ChevronLeft, ChevronRight, ChevronDown, CalendarClock, X } from 'lucide-react'
+import { LogOut, Stethoscope, FileText, ChevronLeft, ChevronRight, ChevronDown, CalendarClock, X, Video } from 'lucide-react'
 import { useDoctorAuth } from '../../context/DoctorAuthContext'
 import {
   getMySchedule,
@@ -8,6 +8,7 @@ import {
   addMyPrescription,
   rescheduleMyAppointment,
   cancelMyAppointment,
+  enableMyTelemedicine,
   type DoctorDaySchedule,
   type Appointment,
 } from '../../services/api'
@@ -82,6 +83,20 @@ export default function DoctorDashboardPage() {
   }
 
   useEffect(load, [user, date, viewMode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startVideoCall = async (appt: Appointment) => {
+    if (appt.video_room_key) {
+      window.open(`https://meet.jit.si/${appt.video_room_key}`, '_blank')
+      return
+    }
+    try {
+      const res = await enableMyTelemedicine(appt.id)
+      if (res.data.video_room_key) window.open(`https://meet.jit.si/${res.data.video_room_key}`, '_blank')
+      load()
+    } catch {
+      /* best-effort -- if this fails the button just doesn't open anything */
+    }
+  }
 
   const byDay = useMemo(() => {
     const map: Record<string, Appointment[]> = {}
@@ -186,6 +201,7 @@ export default function DoctorDashboardPage() {
                       onPrescribe={() => setPrescribingFor(a)}
                       onReschedule={() => setReschedulingFor(a)}
                       onCancel={() => setCancellingFor(a)}
+                      onVideo={() => startVideoCall(a)}
                     />
                   ))}
                 </div>
@@ -282,11 +298,13 @@ function AppointmentRow({
   onPrescribe,
   onReschedule,
   onCancel,
+  onVideo,
 }: {
   appt: Appointment
   onPrescribe: () => void
   onReschedule: () => void
   onCancel: () => void
+  onVideo: () => void
 }) {
   const canModify = appt.status !== 'cancelled' && appt.status !== 'completed'
   return (
@@ -297,10 +315,18 @@ function AppointmentRow({
             {appt.appointment_time.slice(0, 5)} — {appt.patient_name}
           </p>
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[appt.status] ?? 'bg-slate-100 text-slate-500'}`}>{appt.status}</span>
+          {appt.is_telemedicine && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600">Video visit</span>
+          )}
         </div>
         <p className="text-xs text-slate-400">{appt.reason ?? 'General consultation'}</p>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
+        {canModify && (
+          <button onClick={onVideo} className="flex items-center gap-1 text-xs font-semibold text-violet-600 hover:bg-violet-50 px-2.5 py-1.5 rounded-lg">
+            <Video size={13} /> {appt.is_telemedicine ? 'Join' : 'Start'} Video
+          </button>
+        )}
         <button onClick={onPrescribe} className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:bg-teal-50 px-2.5 py-1.5 rounded-lg">
           <FileText size={13} /> Prescription
         </button>

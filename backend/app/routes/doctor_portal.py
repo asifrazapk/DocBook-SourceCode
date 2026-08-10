@@ -108,3 +108,17 @@ async def cancel_my_appointment(appt_id: int, body: CancelRequest, user: dict = 
         raise HTTPException(status_code=404, detail="Appointment not found")
     return updated
 
+
+@router.post("/appointments/{appt_id}/telemedicine")
+async def enable_telemedicine(appt_id: int, user: dict = Depends(get_current_user)):
+    """Turns an appointment into a video consultation -- generates a Jitsi
+    room key once (idempotent: calling this again just returns the same
+    room). Lets the doctor start a video visit themselves rather than
+    needing an admin to enable it first."""
+    doctor_id = _require_doctor(user)
+    await _own_appointment_or_404(doctor_id, appt_id)
+    updated = await appointment_service.update_appointment(appt_id, {"is_telemedicine": True})
+    if not updated:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return updated
+

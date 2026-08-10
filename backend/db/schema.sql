@@ -1,7 +1,7 @@
 -- ============================================================
--- MediBot Database Schema (PostgreSQL)
+-- I-DocAssistance Database Schema (PostgreSQL)
 -- Run this in pgAdmin's Query Tool against your target database,
--- or via: psql -U medibot -d medibot -f db/schema.sql
+-- or via: psql -U I-DocAssistance -d I-DocAssistance -f db/schema.sql
 --
 -- Note: the app talks to Postgres directly via asyncpg (app/repo/),
 -- not an ORM, so this script is the source of truth for the schema.
@@ -522,5 +522,31 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ix_app_settings_clinic_key ON app_settings (clinic_id, key);
+
+-- ------------------------------------------------------------
+-- notifications
+-- Server-side, persisted admin notifications (e.g. "new appointment
+-- booked"), scoped per clinic. Replaces the earlier browser-localStorage-only
+-- approach so notifications survive a page reload, are visible from any
+-- device/session watching that clinic, and can be paginated (most recent 10
+-- first, "load more" fetching 10 further back at a time).
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
+    id                  SERIAL PRIMARY KEY,
+    user_id             INTEGER REFERENCES users (id),
+    clinic_id           INTEGER NOT NULL REFERENCES clinics (id) ON DELETE CASCADE,
+    message             VARCHAR NOT NULL,
+    notification_type   VARCHAR NOT NULL DEFAULT 'general',  -- e.g. 'appointment_created', 'appointment_cancelled'
+    reference_id        INTEGER,  -- optional: id of the related appointment/entity, for future deep-linking
+    is_read             BOOLEAN NOT NULL DEFAULT false,
+    is_deleted          BOOLEAN NOT NULL DEFAULT false,
+    local_created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    local_updated_at    TIMESTAMP,
+    server_created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    server_updated_at   TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_notifications_clinic_created ON notifications (clinic_id, server_created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_notifications_clinic_unread ON notifications (clinic_id, is_read) WHERE NOT is_read;
 
 COMMIT;

@@ -80,7 +80,7 @@ export default function ChatPage() {
 
   const setLang = (next: 'en' | 'ur') => {
     i18n.changeLanguage(next)
-    localStorage.setItem('medibot_lang', next)
+    localStorage.setItem('I-DocAssistance_lang', next)
   }
 
   const toggleVoiceInput = () => {
@@ -135,7 +135,7 @@ export default function ChatPage() {
         // so the *next* message (including a Latin-script quick-reply tap)
         // stays sticky to it instead of reverting.
         i18n.changeLanguage(res.data.language)
-        localStorage.setItem('medibot_lang', res.data.language)
+        localStorage.setItem('I-DocAssistance_lang', res.data.language)
       }
     } catch {
       setMessages((prev) => [

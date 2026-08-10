@@ -52,7 +52,7 @@ def build_nlu_messages(
 
     known_block = ", ".join(f"{k}={v}" for k, v in known_slots.items() if v) or "(none)"
 
-    system = f"""You are the NLU front-end for MediBot, a clinic appointment assistant. For
+    system = f"""You are the NLU front-end for I-DocAssistance, a clinic appointment assistant. For
 the patient's LATEST message, do two things at once:
 
 1. Classify it into exactly one intent:

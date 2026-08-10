@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CalendarCheck, Plus, CalendarClock, X, FileText } from 'lucide-react'
+import { ArrowLeft, CalendarCheck, Plus, CalendarClock, X, FileText, Video } from 'lucide-react'
 import ChatLogin, { type ChatIdentity } from '../components/ChatLogin'
 import {
   getMyAppointmentsByPhone,
   getMyMedicalRecordsByPhone,
   patientRescheduleAppointment,
   patientCancelAppointment,
+  patientEnableTelemedicine,
   getDoctors,
   getDoctorDaySchedule,
   createAppointment,
@@ -71,6 +72,21 @@ export default function MyAppointmentsPage() {
 
   useEffect(load, [clinicId, identity]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const startVideoCall = async (a: Appointment) => {
+    if (!clinicId || !identity) return
+    if (a.video_room_key) {
+      window.open(`https://meet.jit.si/${a.video_room_key}`, '_blank')
+      return
+    }
+    try {
+      const res = await patientEnableTelemedicine(a.id, clinicId, identity.phone)
+      if (res.data.video_room_key) window.open(`https://meet.jit.si/${res.data.video_room_key}`, '_blank')
+      load()
+    } catch {
+      /* best-effort -- if this fails the button just doesn't open anything */
+    }
+  }
+
   const recordsByAppt = useMemo(() => {
     const map: Record<number, MedicalRecord> = {}
     for (const r of records) map[r.appointment_id] = r
@@ -124,9 +140,14 @@ export default function MyAppointmentsPage() {
                     <p className="font-semibold text-slate-800 text-sm">
                       {a.appointment_date} at {a.appointment_time.slice(0, 5)}
                     </p>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLE[a.status] ?? 'bg-slate-100 text-slate-500'}`}>
-                      {a.status}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {a.is_telemedicine && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-600">Video visit</span>
+                      )}
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLE[a.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                        {a.status}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-slate-500 mb-2">
                     {a.doctor_name ?? 'Doctor not assigned'} {a.reason ? `· ${a.reason}` : ''}
@@ -146,6 +167,12 @@ export default function MyAppointmentsPage() {
 
                   {canModify && (
                     <div className="flex items-center gap-1 mt-3 pt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => startVideoCall(a)}
+                        className="flex items-center gap-1 text-xs font-semibold text-violet-600 hover:bg-violet-50 px-2 py-1 rounded"
+                      >
+                        <Video size={12} /> {a.is_telemedicine ? 'Join' : 'Request'} Video
+                      </button>
                       <button
                         onClick={() => setRescheduling(a)}
                         className="flex items-center gap-1 text-xs font-semibold text-sky-600 hover:bg-sky-50 px-2 py-1 rounded"

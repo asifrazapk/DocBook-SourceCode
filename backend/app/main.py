@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from contextlib import asynccontextmanager
 
@@ -7,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings as app_settings
 from app.core.logging import configure_logging
 from app.repo.sql_connector import init_db_pools, close_db_pools
 from app.routes import (
@@ -27,11 +27,12 @@ from app.routes import (
     waitlist,
     reviews,
     voice,
+    notifications,
 )
 
 configure_logging()
-logger = logging.getLogger("medibot")
-DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
+logger = logging.getLogger("I-DocAssistance")
+DEBUG = app_settings.DEBUG
 
 
 @asynccontextmanager
@@ -43,11 +44,11 @@ async def lifespan(app: FastAPI):
     await close_db_pools()
 
 
-app = FastAPI(title="MediBot API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="I-DocAssistance API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if app_settings.CORS_ALLOWED_ORIGINS.strip() == "*" else [o.strip() for o in app_settings.CORS_ALLOWED_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -98,6 +99,7 @@ app.include_router(doctor_portal.router)
 app.include_router(waitlist.router)
 app.include_router(reviews.router)
 app.include_router(voice.router)
+app.include_router(notifications.router)
 
 
 @app.get("/health")

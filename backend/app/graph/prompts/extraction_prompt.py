@@ -20,7 +20,7 @@ def build_extraction_messages(
 
     known_block = ", ".join(f"{k}={v}" for k, v in known_slots.items() if v) or "(none)"
 
-    system = f"""You extract appointment details from a patient's message for MediBot.
+    system = f"""You extract appointment details from a patient's message for I-DocAssistance.
 Today's date is {today.isoformat()} (Asia/Karachi).
 
 Resolve relative dates to absolute YYYY-MM-DD using these exact mappings --
