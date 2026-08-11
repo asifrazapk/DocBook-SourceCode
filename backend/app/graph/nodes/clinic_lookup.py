@@ -6,7 +6,7 @@ fallback.
 """
 
 from app.graph.state import ChatState
-from app.repo.clinic_repo import ClinicRepo
+from app.services.clinic_service import get_clinic_cached
 
 
 async def clinic_lookup_node(state: ChatState) -> dict:
@@ -15,7 +15,7 @@ async def clinic_lookup_node(state: ChatState) -> dict:
         return {"matched_clinic": clinic}
 
     try:
-        clinic = await ClinicRepo.get_by_id(state["clinic_id"])
+        clinic = await get_clinic_cached(state["clinic_id"])
     except ValueError:
         return {"matched_clinic": None}
     return {"matched_clinic": clinic}

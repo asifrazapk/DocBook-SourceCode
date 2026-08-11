@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import logging
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -7,6 +8,8 @@ from pydantic import BaseModel
 
 from app.services import voice_service
 from app.services.chat_service import get_chat_response
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 
@@ -22,8 +25,10 @@ async def speak(body: SpeakRequest):
     try:
         audio_bytes = await asyncio.to_thread(voice_service.synthesize_speech, body.text, body.voice_id)
     except voice_service.VoiceNotConfiguredError as exc:
+        logger.warning(f"/voice/speak: not configured -- {exc}")
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
+        logger.exception("/voice/speak: speech synthesis failed")
         raise HTTPException(status_code=502, detail=f"Speech synthesis failed: {exc}")
     return Response(content=audio_bytes, media_type="audio/mpeg")
 
@@ -61,10 +66,14 @@ async def voice_message(body: VoiceMessageRequest):
     try:
         reply_audio = await asyncio.to_thread(voice_service.synthesize_speech, reply)
         audio_b64 = base64.b64encode(reply_audio).decode("ascii")
-    except voice_service.VoiceNotConfiguredError:
-        pass  # frontend falls back to browser TTS
+    except voice_service.VoiceNotConfiguredError as exc:
+        logger.warning(f"/voice/message: TTS not configured, falling back to browser TTS -- {exc}")
     except Exception:
-        pass  # best-effort -- the text reply below still gets through
+        # Best-effort -- the text reply below still gets through -- but this
+        # used to fail completely silently (e.g. a 402 from ElevenLabs for a
+        # library voice on a free plan), which looked like "ElevenLabs just
+        # isn't calling" with zero trace of why. Now it's at least in the logs.
+        logger.exception("/voice/message: speech synthesis failed, falling back to browser TTS")
 
     return {
         "patient_text": body.message,

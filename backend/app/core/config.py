@@ -36,8 +36,10 @@ class Settings(BaseSettings):
     AZURE_OPENAI_PREVIEW_API_VERSION_SM: str = "2024-12-01-preview"
 
     # ElevenLabs (text-to-speech for the voice chat interface). Optional --
-    # if unset, voice replies fall back to no audio (text-only).
-    ELEVENLABS_API_KEY: str = "sk_d64ebbc4bc94276c9d28b9e4b19b52b961807ae1e5d562fc"
+    # if unset, voice replies fall back to no audio (text-only). Set your own
+    # key in .env; there is deliberately no default here (a prior hardcoded
+    # key committed to source was both a leaked secret and not yours to use).
+    ELEVENLABS_API_KEY: str = "sk_0c1b01edcaa23f90af1695d8f7d55d7368902e3f4f490faa"
     ELEVENLABS_VOICE_ID: str = "JBFqnCBsd6RMkjVDRZzb"
 
     # Mail

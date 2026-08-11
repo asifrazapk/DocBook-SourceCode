@@ -26,6 +26,28 @@ from app.services.settings_service import get_email_settings_for_sending
 
 logger = logging.getLogger(__name__)
 
+# Tracks in-flight best-effort side effects (confirmation emails,
+# notifications) fired via _fire_and_forget() so the request/response cycle
+# doesn't block on them, while still keeping a reference so asyncio doesn't
+# garbage-collect a task mid-flight.
+_background_tasks: set[asyncio.Task] = set()
+
+
+async def _run_background(coro, label: str) -> None:
+    try:
+        await coro
+    except Exception:
+        logger.exception(f"Background task failed: {label}")
+
+
+def _fire_and_forget(coro, label: str) -> None:
+    """Schedule a best-effort side effect without making the caller wait
+    for it -- used for confirmation emails and notifications, which should
+    never delay an appointment booking/update response."""
+    task = asyncio.create_task(_run_background(coro, label))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
 
 class SlotUnavailableError(Exception):
     """Raised when the requested doctor/date/time is already booked --
@@ -217,7 +239,7 @@ async def book_appointment(
     patient = await get_or_create_patient(clinic_id, patient_name, patient_phone, patient_email, source=patient_source)
     appt = await _book_single_time(clinic_id, doctor_id, patient, appointment_date, appointment_time, reason, language)
     appt["patient"] = patient
-    await _send_confirmation_email(appt, patient, [appointment_time])
+    _fire_and_forget(_send_confirmation_email(appt, patient, [appointment_time]), "send_confirmation_email")
     return appt
 
 
@@ -253,7 +275,10 @@ async def book_appointments_multi(
             failed.append({"time": str(t), "error": str(exc)})
 
     if booked:
-        await _send_confirmation_email(booked[0], patient, [b["appointment_time"] for b in booked])
+        _fire_and_forget(
+            _send_confirmation_email(booked[0], patient, [b["appointment_time"] for b in booked]),
+            "send_confirmation_email",
+        )
 
     return {"patient": patient, "booked": booked, "failed": failed}
 
@@ -307,7 +332,10 @@ async def _book_single_time(
             f"Doctor {doctor_id} is already booked on {appointment_date} at {appointment_time}."
         ) from exc
 
-    await _notify_new_appointment(clinic_id, doctor_id, patient, appointment_date, created.get("status", "pending"))
+    _fire_and_forget(
+        _notify_new_appointment(clinic_id, doctor_id, patient, appointment_date, created.get("status", "pending")),
+        "notify_new_appointment",
+    )
     return created
 
 
@@ -431,7 +459,7 @@ async def update_appointment(appt_id: int, data: Dict[str, Any], note: Optional[
     # Notify patient + doctor only on the actual pending -> confirmed
     # transition, not on every subsequent edit (e.g. adding a note later).
     if updated and payload.get("status") == "confirmed" and existing.get("status") != "confirmed":
-        await _notify_confirmation(updated)
+        _fire_and_forget(_notify_confirmation(updated), "notify_confirmation")
 
     return updated
 
@@ -514,10 +542,10 @@ async def cancel_appointment(appt_id: int, note: Optional[str] = None) -> Option
     if existing.get("doctor_id"):
         from app.services.waitlist_service import notify_waitlist_for_opening
 
-        try:
-            await notify_waitlist_for_opening(existing["clinic_id"], existing["doctor_id"], existing["appointment_date"])
-        except Exception:
-            logger.exception("Waitlist notification failed after cancellation")
+        _fire_and_forget(
+            notify_waitlist_for_opening(existing["clinic_id"], existing["doctor_id"], existing["appointment_date"]),
+            "notify_waitlist_for_opening",
+        )
 
     return updated
 

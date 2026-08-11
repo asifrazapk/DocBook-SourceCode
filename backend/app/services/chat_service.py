@@ -12,18 +12,44 @@ already expect, _expand_history() unpacks each turn row back into a
 user/assistant pair.
 """
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 from zoneinfo import ZoneInfo
 
+import logging
+
 from app.graph.graph import run_chat_graph
 from app.graph.state import ChatState
-from app.repo.chat_repo import ChatMessageRepo
-from app.repo.clinic_repo import ClinicRepo
+from app.repo.chat_repo import ChatMessageRepo, new_message_id
 from app.repo.conversation_repo import ConversationRepo
+from app.services.clinic_service import get_clinic_cached
 from app.services.faq_service import get_all_faqs_for_context
 from app.services.settings_service import get_general_settings
+
+logger = logging.getLogger(__name__)
+
+# Tracks the in-flight background persist of each chat turn -- kept so
+# asyncio doesn't garbage-collect the task mid-write.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro, label: str) -> None:
+    """Schedule a DB write without making the caller wait for it. The reply
+    text and message_id are already known before this runs, so the client
+    gets its response as soon as the graph is done -- the turn is persisted
+    a moment later."""
+
+    async def _run():
+        try:
+            await coro
+        except Exception:
+            logger.exception(f"Background task failed: {label}")
+
+    task = asyncio.create_task(_run())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 def _expand_history(turn_rows: List[dict]) -> List[Dict[str, str]]:
@@ -70,10 +96,20 @@ async def get_chat_response(
     patient_name: str | None = None,
     language: str | None = None,
 ) -> Tuple[str, List[str], str, str]:
-    try:
-        clinic = await ClinicRepo.get_by_id(clinic_id)
-    except ValueError:
+    # Neither of these depends on the other, so fetch them concurrently
+    # instead of paying for two sequential round trips on every chat turn.
+    clinic_result, faqs = await asyncio.gather(
+        get_clinic_cached(clinic_id),
+        get_all_faqs_for_context(clinic_id),
+        return_exceptions=True,
+    )
+    if isinstance(clinic_result, ValueError):
         return "Clinic not found.", [], "", language or "en"
+    if isinstance(clinic_result, BaseException):
+        raise clinic_result
+    if isinstance(faqs, BaseException):
+        raise faqs
+    clinic = clinic_result
 
     # Priority order matters here, and got this backwards before:
     #   1. Actual Urdu script in THIS message is the strongest signal --
@@ -126,8 +162,6 @@ async def get_chat_response(
     turn_rows = await ChatMessageRepo.list_by_conversation(conv["id"])
     history = _expand_history(turn_rows)
 
-    faqs = await get_all_faqs_for_context(clinic_id)
-
     state: ChatState = {
         "clinic_id": clinic_id,
         "session_id": session_id,
@@ -146,19 +180,27 @@ async def get_chat_response(
     quick_replies = result.get("quick_replies", [])
 
     # Persist the whole turn as one row, plus lightweight debugging context.
+    # The message_id is generated up front so it can be returned to the
+    # caller (needed for the feedback thumbs-up/down) without waiting for
+    # the insert itself -- that write happens in the background.
     context, traces = _serialize_debug_fields(result)
     local_created_at, server_created_at = _clinic_local_and_server_now(clinic.get("timezone"))
-    turn = await ChatMessageRepo.create_turn(
-        conversation_id=conv["id"],
-        message_text=user_message,
-        llm_response=final_reply,
-        context=context,
-        traces=traces,
-        local_created_at=local_created_at,
-        server_created_at=server_created_at,
+    message_id = new_message_id()
+    _fire_and_forget(
+        ChatMessageRepo.create_turn(
+            conversation_id=conv["id"],
+            message_text=user_message,
+            llm_response=final_reply,
+            context=context,
+            traces=traces,
+            local_created_at=local_created_at,
+            server_created_at=server_created_at,
+            message_id=message_id,
+        ),
+        "persist_chat_turn",
     )
 
-    return final_reply, quick_replies, turn["message_id"], lang
+    return final_reply, quick_replies, message_id, lang
 
 
 def _clinic_local_and_server_now(clinic_timezone: str | None) -> Tuple[datetime, datetime]:

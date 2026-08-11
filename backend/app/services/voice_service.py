@@ -14,6 +14,20 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+_client = None
+
+
+def _get_client():
+    """Lazily build the ElevenLabs client once and reuse it -- constructing
+    it fresh on every call (as before) meant a new HTTP client/session per
+    TTS request for no reason."""
+    global _client
+    if _client is None:
+        from elevenlabs.client import ElevenLabs
+
+        _client = ElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
+    return _client
+
 
 class VoiceNotConfiguredError(Exception):
     """Raised when text-to-speech is called without ELEVENLABS_API_KEY set
@@ -34,9 +48,7 @@ def synthesize_speech(text: str, voice_id: Optional[str] = None) -> bytes:
     if not settings.ELEVENLABS_API_KEY:
         raise VoiceNotConfiguredError("Text-to-speech isn't configured (ELEVENLABS_API_KEY is unset).")
 
-    from elevenlabs.client import ElevenLabs
-
-    client = ElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
+    client = _get_client()
     audio_stream = client.text_to_speech.convert(
         text=text,
         voice_id=voice_id or settings.ELEVENLABS_VOICE_ID,

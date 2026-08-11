@@ -13,6 +13,8 @@ still need to commit to a single doctor to check slots, so they keep the
 first-match behaviour there.
 """
 
+import asyncio
+
 from app.graph.constants import Intent
 from app.graph.state import ChatState
 from app.repo.doctor_repo import DoctorRepo
@@ -23,12 +25,18 @@ async def doctor_lookup_node(state: ChatState) -> dict:
     slots = state.get("slots", {})
     intent = state.get("intent")
 
-    doctors = await DoctorRepo.list_by_clinic(clinic_id)
-    matched = None
-
     name = (slots.get("doctor_name") or "").strip()
+
+    # list_by_clinic and find_by_name are independent queries -- run them
+    # concurrently instead of paying for two sequential round trips.
     if name:
-        matched = await DoctorRepo.find_by_name(clinic_id, name)
+        doctors, matched = await asyncio.gather(
+            DoctorRepo.list_by_clinic(clinic_id),
+            DoctorRepo.find_by_name(clinic_id, name),
+        )
+    else:
+        doctors = await DoctorRepo.list_by_clinic(clinic_id)
+        matched = None
 
     specialty = (slots.get("specialty") or "").strip().lower()
     specialty_matches = (

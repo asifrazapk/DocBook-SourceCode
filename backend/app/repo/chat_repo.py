@@ -69,6 +69,7 @@ class ChatMessageRepo(BasePostgresModel):
         traces: Optional[str] = None,
         local_created_at: Optional[datetime] = None,
         server_created_at: Optional[datetime] = None,
+        message_id: Optional[str] = None,
     ) -> dict:
         """Persist one full turn (patient message + bot response).
 
@@ -76,9 +77,14 @@ class ChatMessageRepo(BasePostgresModel):
         caller knows the clinic's timezone (chat_service does) so the row
         gets a real clinic-local timestamp instead of the column default's
         same-instant placeholder.
+
+        message_id is optional too: pass one in when the caller needs to know
+        the id before the row is actually written (chat_service generates it
+        up front so it can hand the id back to the client while the insert
+        happens in the background).
         """
         data: dict = {
-            "message_id": new_message_id(),
+            "message_id": message_id or new_message_id(),
             "conversation_id": conversation_id,
             "message_text": message_text,
             "llm_response": llm_response,

@@ -2,6 +2,7 @@
 feedback, and LLM evaluation quality scores, all filterable by date range.
 """
 
+import asyncio
 from datetime import date as date_type
 from typing import Any, Dict
 
@@ -56,12 +57,16 @@ def _compute_metrics(
 
 
 async def get_overview(clinic_id: int, start_date: date_type, end_date: date_type) -> Dict[str, Any]:
-    totals = await ChatMessageRepo.totals(clinic_id, start_date, end_date)
-    daily_counts = await ChatMessageRepo.daily_counts(clinic_id, start_date, end_date)
-    feedback = await ChatMessageRepo.feedback_breakdown(clinic_id, start_date, end_date)
-    llm_overall = await LLMEvaluationRepo.overall_scores(clinic_id, start_date, end_date)
-    llm_daily = await LLMEvaluationRepo.daily_scores(clinic_id, start_date, end_date)
-    recent = await ChatMessageRepo.list_recent_with_eval(clinic_id, start_date, end_date, limit=50)
+    # None of these six queries depend on each other -- run them concurrently
+    # instead of six sequential round trips for one dashboard load.
+    totals, daily_counts, feedback, llm_overall, llm_daily, recent = await asyncio.gather(
+        ChatMessageRepo.totals(clinic_id, start_date, end_date),
+        ChatMessageRepo.daily_counts(clinic_id, start_date, end_date),
+        ChatMessageRepo.feedback_breakdown(clinic_id, start_date, end_date),
+        LLMEvaluationRepo.overall_scores(clinic_id, start_date, end_date),
+        LLMEvaluationRepo.daily_scores(clinic_id, start_date, end_date),
+        ChatMessageRepo.list_recent_with_eval(clinic_id, start_date, end_date, limit=50),
+    )
 
     conversation_count = totals.get("conversation_count", 0)
     message_count = totals.get("message_count", 0)
